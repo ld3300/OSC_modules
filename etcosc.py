@@ -2,6 +2,11 @@
 This script was created with the help of AI.
 """
 
+import logging
+import threading
+import time
+from oschandler import OSCHandler
+
 """
 To DO: REFACTOR the lower oschandler.py to make sure it is only
         intialized once, if more modules are run
@@ -19,10 +24,6 @@ Without a decimal are 32-bit integer
 Non-numeric arguments are treated as strings
 """
 
-import logging
-import time
-import threading
-from oschandler import OSCHandler
 
 # Logger 
 logger = logging.getLogger(__name__)

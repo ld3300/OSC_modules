@@ -9,3 +9,12 @@ __pycache__
 # we need to keep the configuration, so this makes sure that file is not ignored
 !/.qodo/qodana.yml
 *.log
+
+# Assume any folder or files containing "private" are credentials
+*private*
+*Private*
+
+# Python virtual environment
+.venv/
+
+*.code-workspace
