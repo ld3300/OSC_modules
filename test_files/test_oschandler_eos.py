@@ -23,8 +23,8 @@ TX_PORT = 8000
 TX_IP = '127.0.0.1'
 OSC_RX_STRING = '/eos/cmd/Chan/1/At/%1#'
 OSC_RX_SUBSTRING = '/user/1'
-OSC_TX_STRING = '/eos/wheel/coarse/red'
-OSC_TX_ARGS = [5.0]
+OSC_TX_STRING = '/eos/cmd/gobo_select/next'
+OSC_TX_ARGS = ['next']
 
 # Setup logging to file with UTF-8 encoding
 logging.basicConfig(
@@ -53,6 +53,9 @@ while True:
     user_input = input("number plus enter for send, q for quit: \n")
     if user_input == 'q':
         break
+    elif user_input == 'm':
+        print("sending OSC message")
+        osc_manager.send_message(OSC_TX_STRING, OSC_TX_ARGS)
     else:
         my_args = [float(user_input)]
         print("sending OSC message")
