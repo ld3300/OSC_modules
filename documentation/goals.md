@@ -1,6 +1,13 @@
 
 ##### Make sure all py modules are very thoroughly documented, including all input/output options ###
 
+##### CURRENT TASKS #####
+- figure out button strings to step through gobos, maybe also color wheels
+- configure how hat works
+- Figure out osc string for color temperature wheel
+
+##### ##### ##### ##### 
+
 
 test send and receive OSC: COMPLETE
 ### Milestone 1: Reliable OSC Send/Receive
@@ -46,6 +53,7 @@ Tasks:
 - This milestone will provide a robust, reusable foundation for all ETC EOS automation and integration tasks, keeping your codebase organized and maintainable.
 
 # ##############################################################################
+
 
 
 make a module to extract color palette information using osc returns
