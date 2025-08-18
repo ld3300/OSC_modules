@@ -3,6 +3,12 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+.vscode/settings.json
+*.lnk
+.DS_Store
+*.alias
+*~
+
 __pycache__
 # qodo can add a lot of cache data
 .qodo/
