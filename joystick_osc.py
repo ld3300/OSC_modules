@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 BUTTON_OPERATION = (
     ('function', 'fine_mode', ''),  # button 0, trigger
     ('function', 'hue_sat', ''),    # button 1 thumb
-    ('osc', '/gobo/wheel/1/steporsomething' ('')), # button 2
+    ('osc', '/gobo_select/next' ('')), # button 2
     ('osc', '/gobo/wheel/1/steporsomething' ('')), # button 3
     ('osc', '/gobo/wheel/1/steporsomething' ('')), # button 4
     ('osc', '/gobo/wheel/1/steporsomething' ('')), # button 5
@@ -38,6 +38,7 @@ BUTTON_OPERATION = (
     ('none', '', ''), # button 10
     ('none', '', '')  # button 11
 )
+# /eos/cmd/gobo_select/next, gobo_select_2, color_select, color_select_2
 
 # Hat operations, probably edge, diffusion
 
@@ -304,6 +305,7 @@ class JoystickOSC:
 
     # def handleHat(_hat, _value):
 
+    # Function to send a command line
 
 # Old execution code, before built class, need new test method now
         # while True:

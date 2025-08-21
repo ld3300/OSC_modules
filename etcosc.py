@@ -3,8 +3,7 @@ This script was created with the help of AI.
 """
 
 import logging
-import threading
-import time
+import re
 from oschandler import OSCHandler
 
 """
@@ -182,12 +181,21 @@ class etcosc:
         # elif try:
         #     int(self.user)
 
-
-
-
     # eos tx command line
     # There are 2 command line methods, one as a string, one with all commands
     # as part of the address /eos/cmd/chan/1/at...
+    def eos_send_cmd(self, *args):
+        """
+        To send a command line OSC address
+        *args should be a list of strings comprising the command line
+        prompt.
+        example: ['chan','1','at','50','enter']
+        """
+        command_string = '/'.join(self.base_address,args)
+        self.osc_handler.send_message(command_string, '')
+        logger.info(f"sent: {command_string})")
+
+
 
     # eos tx chan and value (percentage or decimal)
 
