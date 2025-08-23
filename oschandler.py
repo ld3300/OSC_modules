@@ -2,16 +2,16 @@
 This script was created with the help of AI.
 """
 
-""" OSC Handler for sending and receiving messages."""
+# OSC Handler for sending and receiving messages.
 
-"""
-To Do:
-- Change to async from threading
-- REFACTOR handle singleton patterns, basically make it so that if the
-    module has already been initialized, running another high level
-    module doesn't reinitialize it.
-- Consider making sending device IP available in receive methods
-"""
+
+# ToDo:
+# - Change to async from threading
+# - REFACTOR handle singleton patterns, basically make it so that if the
+#     module has already been initialized, running another high level
+#     module doesn't reinitialize it.
+# - Consider making sending device IP available in receive methods
+
 
 # may need to do the following:
 # pip install python-osc
@@ -135,9 +135,9 @@ class OSCHandler:
             messages.  This may be necessary if working with interfaces
             that output complicated messages, or messages faster than
             the receiving device can process them.
-        min_send_interval # default is 0.00. Seconds, set this if issues
-            sending messages faster than receiver can handle. 0.00 is
-            the same as disabled.
+        min_send_interval # default is 0.00. Seconds between messages,
+            set this if issues sending messages faster than receiver
+            can handle. 0.00 is the same as disabled.
         rate_limit_mode # 'buffer' or 'drop' default is 'buffer'. When
             rate is limited do you want to buffer messages, or drop any
             messages that are sent faster than min_send_interval.

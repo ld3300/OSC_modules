@@ -2,14 +2,13 @@
 This script was created with the help of AI.
 """
 
-import logging
-import re
-from oschandler import OSCHandler
+# TODO: - refactor lower oschandler to make sure it can only be
+#       initialized once per tx port
+#       - Add timing to limit wheel output to 
 
-"""
-To DO: REFACTOR the lower oschandler.py to make sure it is only
-        intialized once, if more modules are run
-"""
+import logging
+# import re
+from oschandler import OSCHandler
 
 
 """
@@ -34,7 +33,7 @@ class etcosc:
     parsing for ETC Consoles
     """
     def __init__(self,
-        mode='both',
+        mode='txrx',
         tx_udp_ip=None,
         tx_port=None,
         rx_udp_ip='0.0.0.0',
@@ -42,7 +41,7 @@ class etcosc:
     ):
         """
         When initialized, set following:
-        mode, sets if transmitting 'tx', receiving 'rx', or 'both'
+        mode, sets if transmitting 'tx', receiving 'rx', 'txrx'
         If TX enabled:
             transmit udp ip address for receiving device, can be a
             broadcast address transmit port, should be same as receive
@@ -69,6 +68,7 @@ class etcosc:
         self.console='eos' # can be changed with define_console method
         self.user=None # see change_user method
         self.base_address=f"/{self.console}"
+        self.last_send_interval = -1.0
 
         self.osc_handler = OSCHandler(
             mode=self.mode,
@@ -86,11 +86,15 @@ class etcosc:
         )
 
     # Send message directly to oschandler
-    def osc_send_raw(self, address, *args):
+    def osc_send_raw(self, address, *args, send_interval=0.0):
         """
         Send message straight to lower oschandler module.
         args don't apply to all messages
         """
+        if send_interval != self.last_send_interval:
+            self.osc_handler.set_tx_rate_limit(min_send_interval=send_interval,
+                                               rate_limit_mode='buffer')
+            self.last_send_interval = send_interval
         self.osc_handler.send_message(address, args)
         logger.info(f"sent {address} {args}")
 
@@ -184,13 +188,17 @@ class etcosc:
     # eos tx command line
     # There are 2 command line methods, one as a string, one with all commands
     # as part of the address /eos/cmd/chan/1/at...
-    def eos_send_cmd(self, *args):
+    def eos_send_cmd(self, *args, send_interval=0.0):
         """
         To send a command line OSC address
         *args should be a list of strings comprising the command line
         prompt.
         example: ['chan','1','at','50','enter']
         """
+        if send_interval != self.last_send_interval:
+            self.osc_handler.set_tx_rate_limit(min_send_interval=send_interval,
+                                               rate_limit_mode='buffer')
+            self.last_send_interval = send_interval
         command_string = '/'.join(self.base_address,args)
         self.osc_handler.send_message(command_string, '')
         logger.info(f"sent: {command_string})")
@@ -204,21 +212,22 @@ class etcosc:
 
     # TEMP test strings
     # osc = etcosc(mode='tx',tx_udp_ip='127.0.0.1',tx_port=8000)
-    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',clicks=4.0)
-    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',clicks=-7.5,coarse_explicit=True)
-    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',clicks=10.09,fine=True)
-    # osc.eos_send_wheel(wheel_type='index',index='3',clicks=8.0)
-    # osc.eos_send_wheel(wheel_type='index',index='3',clicks=-20.0,coarse_explicit=True)
-    # osc.eos_send_wheel(wheel_type='index',index='3',clicks=35.089,fine=True)
+    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',ticks=4.0)
+    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',ticks=-7.5,coarse_explicit=True)
+    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',ticks=10.09,fine=True)
+    # osc.eos_send_wheel(wheel_type='index',index='3',ticks=8.0)
+    # osc.eos_send_wheel(wheel_type='index',index='3',ticks=-20.0,coarse_explicit=True)
+    # osc.eos_send_wheel(wheel_type='index',index='3',ticks=35.089,fine=True)
 
     # eos out wheel
     def eos_send_wheel(self,
         wheel_type='param',
         param=None,
         index=None,
-        clicks=0.0,
+        ticks=0.0,
         fine=False,
-        coarse_explicit=False
+        coarse_explicit=False,
+        send_interval=0.05
     ):
         """
         Sends the OSC Wheel command.
@@ -238,6 +247,8 @@ class etcosc:
         Format reference:
         index: /eos/active/wheel/(coarse|fine/)<index> <(float)>
         param: /eos/wheel/(coarse|fine/)<param> <(float)>
+        send_interval: sets number of seconds between packets,
+            prevents console lag. set to 0 to disable.
         returns: /eos/out/active/wheel/2 "Red  [78]"(s), 3(i), 77.900(f) 
             "Red [78]" param name and rounded value
             3(int) = I believe this is param class - color is 3
@@ -245,11 +256,11 @@ class etcosc:
         Also returns hue and saturation:
             /eos/out/color/hs, 293.308(f), 49.211(f)
         """
-        _clicks = 0.0
+        _ticks = 0.0
         try:
-            _clicks = float(clicks)
+            _ticks = float(ticks)
         except ValueError:
-            logger.error(f"clicks={clicks} must be a number")
+            logger.error(f"ticks={ticks} must be a number")
             return
         _wheel_address = self.base_address
         _mode = ''
@@ -273,8 +284,13 @@ class etcosc:
         else:
             logger.error(f"wheel_type={wheel_type} not recognized")
             return
-        self.osc_handler.send_message(_wheel_address, _clicks)
-        logger.info(f"sent: {_wheel_address} {_clicks}({type(_clicks)})")
+        if send_interval != self.last_send_interval:
+            self.osc_handler.set_tx_rate_limit(min_send_interval=send_interval,
+                                               rate_limit_mode='drop')
+            self.last_send_interval = send_interval
+        self.osc_handler.send_message(_wheel_address, _ticks)
+        # logger sends too many messages due to streaming nature
+        # logger.info(f"sent: {_wheel_address} {_ticks}({type(_ticks)})")
 
 
 

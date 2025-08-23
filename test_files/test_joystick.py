@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 ##################################################################################
 
 import logging
-from oschandler import OSCHandler
+from etcosc import etcosc
 from joystick_osc import JoystickOSC
 
 # Constants, change for your test environment
@@ -36,14 +36,14 @@ logging.basicConfig(
     ]
 )
 
-osc_manager = OSCHandler(
+osc_manager = etcosc(
     mode='tx',
     tx_udp_ip=TX_IP,
     tx_port=TX_PORT,
     rx_port=RX_PORT
 )
 
-joystick = JoystickOSC()
+joystick = JoystickOSC(osc=osc_manager)
 
 def my_handler(address, *args):
     print("Received:", address, args)
@@ -52,7 +52,9 @@ def my_handler(address, *args):
 
 # osc_manager.start_receiving()
 # logging.info("receiver started")
-
+testmode = 'txrx'
+if testmode in 'txrx':
+    print('txrx passed')
 
 while True:
     # user_input = input(" q + enter for quit: \n")
