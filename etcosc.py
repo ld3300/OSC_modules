@@ -7,7 +7,9 @@ This script was created with the help of AI.
 #       - Add timing to limit wheel output to 
 
 import logging
-# import re
+import threading
+import time
+from collections import deque
 from oschandler import OSCHandler
 
 
@@ -37,7 +39,8 @@ class etcosc:
         tx_udp_ip=None,
         tx_port=None,
         rx_udp_ip='0.0.0.0',
-        rx_port=None
+        rx_port=None,
+        ping=True
     ):
         """
         When initialized, set following:
@@ -59,6 +62,9 @@ class etcosc:
         rx_udp_ip is optional, the default will receive from any device
         network interface. Use if expressly need to control which
         interface is listening. This should rarely be needed.
+        ping argument requires txrx, it will send ping command every 
+        0.5 seconds and calculate latency. Shouldn't need to disable
+        for most cases. Calling script can receive latency.
         """
         self.mode=mode
         self.tx_udp_ip=tx_udp_ip
@@ -69,6 +75,10 @@ class etcosc:
         self.user=None # see change_user method
         self.base_address=f"/{self.console}"
         self.last_send_interval = -1.0
+        self.ping_queue = deque(maxlen=10)
+        self.ping_latency = 0
+        # How often we should send a ping message
+        self.ping_timer = 0.5
 
         self.osc_handler = OSCHandler(
             mode=self.mode,
@@ -84,6 +94,8 @@ class etcosc:
             f"rx_udp_ip={self.rx_udp_ip}"
             f"rx_port={self.rx_port}"
         )
+        if self.mode == "txrx" and ping:
+            self._start_ping()
 
     # Send message directly to oschandler
     def osc_send_raw(self, address, *args, send_interval=0.0):
@@ -292,11 +304,65 @@ class etcosc:
         # logger sends too many messages due to streaming nature
         # logger.info(f"sent: {_wheel_address} {_ticks}({type(_ticks)})")
 
-
+    def get_latency(self):
+        """
+        Will return a float of the latency being calculated via the
+        /eos/ping command.
+        """
+        return self.ping_latency
 
 
         #### eventually add method to check /eos/out for return values
         #### see lighthack github for subscribe example as well
+
+    def _start_ping(self):
+        """
+        Will start the ping process in a thread
+        """
+        self._ping_thread = threading.Thread(target=self._ping, daemon=True)
+        self._ping_thread.start()
+        logger.info("ping started")
+        return #placeholder
+
+    def _ping_send(self):
+        """
+        Sends a ping as with time as an arg. Uses
+        response to determine latency. Should return an error if no
+        response.
+        """
+        ping_base = f"/{self.console}"
+        ping_address = f"{ping_base}/ping"
+        # ping_filter_address = f"{ping_base}/filter/add"
+        # ping_filter_string = f"/{self.console}/out/ping"
+        # Use this to limit the responses received from console, I think this
+        # would actually need to be a different function so it isn't sending
+        # the filter every ping
+        # self.osc_handler.send_message(ping_filter_address, ping_filter_string)
+        # ping_time = f"{time.time()}"
+        while True:
+            ping_time = time.time()
+            self.ping_queue.append(ping_time)
+            self.osc_handler.send_message(ping_address, ping_time)
+            time.sleep(self.ping_timer)
+            # Next will be receiving ping time
+
+
+    def _ping_receive(self):
+        """
+        Handle ETC ping receive messages, check the argument against the
+        deque, and calculate latency, also report lost pings.
+        """
+        # in _start_ping also set up the receiver, this will be the handler
+        # get arg from /etc/out/ping
+        # pop from self.ping_queue. If received argument is older than
+        # pop'd argument, than a ping was lost, logger.error this
+        # if argument = pop'd value than compare that time to current
+        # time.time() to calculate latency. save to self.ping_latency in
+        # seconds
+        return # temp placeholder
+
+
+
 #         Example C code filter and subscribe
 #           // Add a filter so we don't get spammed with unwanted OSC
 #  messages

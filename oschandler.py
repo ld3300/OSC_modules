@@ -217,10 +217,10 @@ class OSCHandler:
         # rate-limit return
         if self._osc_address is not None:
             self.udp_client.send_message(self._osc_address, self._osc_args)
-            logger.info(
-                f"Sent OSC message '{self._osc_address}', '{self._osc_args}' "
-                f"to {self.tx_udp_ip}:{self.tx_port}"
-            )
+            # logger.info(
+            #     f"Sent OSC message '{self._osc_address}', '{self._osc_args}' "
+            #     f"to {self.tx_udp_ip}:{self.tx_port}"
+            # )
             self._osc_address = None
 
     # starts the timer for managing min_send_interval if set
