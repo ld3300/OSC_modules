@@ -15,7 +15,7 @@ This script was created with the help of AI.
 
 # may need to do the following:
 # pip install python-osc
-import asyncio
+
 import logging
 import time
 import threading
@@ -76,11 +76,10 @@ class OSCHandler:
         self.rx_port = rx_port
         self.min_send_interval = 0.00
         self.rate_limit_mode = 'buffer'
-        # self.message_queue = deque(maxlen=50)
-        self.message_queue = asyncio.Queue(maxsize=50)
+        self.message_queue = deque(maxlen=50)
         self.last_send_time = 0
-        self.osc_address = None
-        self.osc_args = None
+        self._osc_address = None
+        self._osc_args = None
         # OSC Message Batch Logging vars, see declutter constants:
         self.batch = None
         self.batch_timer = None
@@ -151,11 +150,10 @@ class OSCHandler:
         if(min_send_interval == 0.00):
             self.message_queue.clear()
         else:
-            # self.message_queue = deque(maxlen=buffer_max_size)
-            self.message_queue = asyncio.Queue(maxsize=buffer_max_size)
+            self.message_queue = deque(maxlen=buffer_max_size)
 
     # Send OSC Message
-    def send_message(self, osc_address, args=None):
+    def send_message(self, osc_address, osc_args=None):
         """
         Send an osc command, arguments should be a list
             (surrounded by []),
@@ -174,26 +172,24 @@ class OSCHandler:
         else:
             # the following converts inputs to a list, to be a little
             # more flexible and robust
-            self.osc_address = osc_address
-            if args is None:
-                self.osc_args = []
-            elif isinstance(args, (list, tuple)):
-                self.osc_args = list(args)
+            self._osc_address = osc_address
+            if osc_args is None:
+                self._osc_args = []
+            elif isinstance(osc_args, (list, tuple)):
+                self._osc_args = list(osc_args)
             else:
-                self.osc_args = [args]
+                self._osc_args = [osc_args]
             # if rate limiting is set we will manage queue and wait time
             if self.min_send_interval > 0:
                 if(self.rate_limit_mode == 'buffer'):
-                    # self.message_queue.append([osc_address, osc_args])
-                    asyncio.create_task()
-                    asyncio
+                    self.message_queue.append([osc_address, osc_args])
                 current_time = time.time()
                 if current_time - self.last_send_time < self.min_send_interval:
                     if (not self.tx_buffer_timer and 
                         self.rate_limit_mode == 'buffer'
                     ):
                         self._start_tx_timer()
-                    self.osc_address = None
+                    self._osc_address = None
                     return
                 else:
                     self.last_send_time = current_time
@@ -201,41 +197,14 @@ class OSCHandler:
 
     # This message wil be called from either send message, or when the
     # rate limiter times out
-    async def _send_message(self):
-        """
-        Waits for new messages, and sleeps for remainder if interval is
-        set
-        """
-        while True:
-            msg = await queue.get()
-            address = msg[0]
-            args = msg[1]
-            if self.min_send_interval > 0:
-                remaining = (self.min_send_interval - 
-                             (time.time() - self.last_send_time))
-                if remaining > 0:
-                    await asyncio.sleep(remaining)
-                else:
-                    self.last_send_time = time.time()
-            if address is not None:
-                self.udp_client.send_message(address, args)
-                self.osc_address = None
-
-
-    # Threading Version:
     def _send_message(self):
-        """
-        Use message queue, interval, and limit mode to handle outgoing
-        messages.
-        """
-        
         if (self.min_send_interval > 0 and self.rate_limit_mode == 'buffer' and
             len(self.message_queue) > 0
         ):
             # take oldest message from queue and prep to send
             next_message = self.message_queue.popleft()
-            self.osc_address = next_message[0]
-            self.osc_args = next_message[1]
+            self._osc_address = next_message[0]
+            self._osc_args = next_message[1]
             if len(self.message_queue) > 0:
                 if self.tx_buffer_timer:
                     self.tx_buffer_timer.cancel()
@@ -244,11 +213,15 @@ class OSCHandler:
                 if self.tx_buffer_timer:
                     self.tx_buffer_timer.cancel()
                 self.tx_buffer_timer = None
-        # Check osc_address again, as it might have been cleared by a
+        # Check _osc_address again, as it might have been cleared by a
         # rate-limit return
-        if self.osc_address is not None:
-            self.udp_client.send_message(self.osc_address, self.osc_args)
-            self.osc_address = None
+        if self._osc_address is not None:
+            self.udp_client.send_message(self._osc_address, self._osc_args)
+            # logger.info(
+            #     f"Sent OSC message '{self._osc_address}', '{self._osc_args}' "
+            #     f"to {self.tx_udp_ip}:{self.tx_port}"
+            # )
+            self._osc_address = None
 
     # starts the timer for managing min_send_interval if set
     def _start_tx_timer(self):
