@@ -321,10 +321,15 @@ class etcosc:
         """
         Will start the ping process in a thread
         """
-        self._ping_thread = threading.Thread(target=self._ping, daemon=True)
-        self._ping_thread.start()
+        self._ping_send_thread = threading.Thread(
+            target=self._ping_send, daemon=True
+        )
+        self._ping_send_thread.start()
+        self._ping_receive_thread = threading.Thread(
+            target=self._ping_receive, daemon=True
+        )
+        self._ping_receive_thread.start()
         logger.info("ping started")
-        return #placeholder
 
     def _ping_send(self):
         """
@@ -351,9 +356,14 @@ class etcosc:
 
     def _ping_receive(self):
         """
-        Handle ETC ping receive messages, check the argument against the
-        deque, and calculate latency, also report lost pings.
+        Handle ETC ping receive messages, Passes response to the
+        _ping_handler
         """
+        ping_base = f"/{self.console}"
+        ping_address = f"{ping_base}/out/ping"
+        self.osc_handler.register_osc_listener(ping_address,
+                                               self._ping_handler)
+        self.osc_handler.start_receiving()
         # in _start_ping also set up the receiver, this will be the handler
         # get arg from /etc/out/ping
         # pop from self.ping_queue. If received argument is older than
@@ -361,9 +371,10 @@ class etcosc:
         # if argument = pop'd value than compare that time to current
         # time.time() to calculate latency. save to self.ping_latency in
         # seconds
-        return # temp placeholder
 
 
+    def _ping_handler(address, *args):
+        logger.info("Received: %s %s", address, args)
 
 #         Example C code filter and subscribe
 #           // Add a filter so we don't get spammed with unwanted OSC

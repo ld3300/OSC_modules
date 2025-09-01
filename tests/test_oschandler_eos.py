@@ -34,14 +34,14 @@ osc_manager = OSCHandler(mode='txrx', tx_udp_ip=TX_IP, tx_port=TX_PORT, rx_port=
 
 def my_handler(address, *args):
     print("Received:", address, args)
-    logging.info("received OSC message: %s %s", address, args)
+    logger.info("received OSC message: %s %s", address, args)
 
 osc_manager.register_osc_listener(OSC_RX_STRING, my_handler)
 osc_manager.register_osc_substring(OSC_RX_SUBSTRING, my_handler)
 
 osc_manager.start_receiving()
 
-logging.info("receiver started")
+logger.info("receiver started")
 
 while True:
     user_input = input("number plus enter for send, q for quit: \n")

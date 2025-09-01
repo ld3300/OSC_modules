@@ -297,7 +297,7 @@ class OSCHandler:
         """
         Handle incoming OSC messages
         Requires specific OSC Address (can use wildcards), and a handler
-            tp receive message
+            to receive message
         To include all address sub-paths, use register_osc_substring
         example:
         def my_handler(address, *args):

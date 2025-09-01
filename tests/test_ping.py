@@ -17,23 +17,17 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 ##################################################################################
 
 import logging
-from etcosc import etcosc
+from osc.etcosc import etcosc
+from osc.logging_config import setup_logging
 
 # Constants, change for your test environment
-LOG_FILE = 'test_oschandler.log'
 RX_PORT = 8001
 TX_PORT = 8000
 TX_IP = '127.0.0.1'
 
-# Setup logging to file with UTF-8 encoding
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
+# Setup logging to file
+setup_logging()
+logger = logging.getLogger(__name__)
 
 osc_manager = etcosc(
     mode='txrx',
@@ -45,11 +39,11 @@ osc_manager = etcosc(
 
 def my_handler(address, *args):
     print("Received:", address, args)
-    logging.info("received OSC message: %s %s", address, args)
+    logger.info("received OSC message: %s %s", address, args)
 
 
 # osc_manager.start_receiving()
-# logging.info("receiver started")
+# logger.info("receiver started")
 testmode = 'txrx'
 if testmode in 'txrx':
     print('txrx passed')

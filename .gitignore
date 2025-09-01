@@ -8,8 +8,9 @@
 .DS_Store
 *.alias
 *~
-
+# Pytest items
 __pycache__
+.pytest_cache/
 # qodo can add a lot of cache data
 .qodo/
 # we need to keep the configuration, so this makes sure that file is not ignored
@@ -21,6 +22,8 @@ __pycache__
 *Private*
 
 # Python virtual environment
-.venv/
+venv/
+.env/
+env/
 
 *.code-workspace
