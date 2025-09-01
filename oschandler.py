@@ -5,8 +5,9 @@ This script was created with the help of AI.
 # OSC Handler for sending and receiving messages.
 
 
-# ToDo:
-# - Change to async from threading
+# TODO:
+# - Change to async from threading - requires adding methods to incorporate
+#       into higher level scripts
 # - REFACTOR handle singleton patterns, basically make it so that if the
 #     module has already been initialized, running another high level
 #     module doesn't reinitialize it.
@@ -16,6 +17,7 @@ This script was created with the help of AI.
 # may need to do the following:
 # pip install python-osc
 
+import asyncio
 import logging
 import time
 import threading
@@ -69,7 +71,7 @@ class OSCHandler:
         network interface. Use if expressly need to control which
         interface is listening. This should rarely be needed.
         """
-        self.mode = mode
+        self.mode = mode.lower()
         self.tx_udp_ip = tx_udp_ip
         self.tx_port = tx_port
         self.rx_udp_ip = rx_udp_ip
@@ -78,12 +80,11 @@ class OSCHandler:
         self.rate_limit_mode = 'buffer'
         self.message_queue = deque(maxlen=50)
         self.last_send_time = 0
-        self._osc_address = None
-        self._osc_args = None
         # OSC Message Batch Logging vars, see declutter constants:
         self.batch = None
         self.batch_timer = None
         self.tx_buffer_timer = None
+        self.flag = asyncio.Event()
         # Get this thing started:
         logger.info(
             f"OSChandler initialized with mode='{self.mode}' "
@@ -97,6 +98,9 @@ class OSCHandler:
         else:
             self.error_list = []
             if 'tx' in self.mode:
+                self._send_message_task = (
+                    # Only start async task if tx mode is enabled
+                    asyncio.create_task(self._send_message))
                 if self.tx_udp_ip is None or self.tx_port is None:
                     self.error_list.append("tx_udp_ip='x.x.x.x' and "
                         "tx_port=#### must be set for transmitting"
@@ -172,65 +176,48 @@ class OSCHandler:
         else:
             # the following converts inputs to a list, to be a little
             # more flexible and robust
-            self._osc_address = osc_address
             if osc_args is None:
-                self._osc_args = []
+                osc_args = []
             elif isinstance(osc_args, (list, tuple)):
-                self._osc_args = list(osc_args)
+                osc_args = list(osc_args)
             else:
-                self._osc_args = [osc_args]
-            # if rate limiting is set we will manage queue and wait time
-            if self.min_send_interval > 0:
-                if(self.rate_limit_mode == 'buffer'):
-                    self.message_queue.append([osc_address, osc_args])
-                current_time = time.time()
-                if current_time - self.last_send_time < self.min_send_interval:
-                    if (not self.tx_buffer_timer and 
-                        self.rate_limit_mode == 'buffer'
-                    ):
-                        self._start_tx_timer()
-                    self._osc_address = None
-                    return
-                else:
-                    self.last_send_time = current_time
-            self._send_message()
+                osc_args = [osc_args]
+            # If drop we only want to send current message
+            if self.rate_limit_mode == 'drop':
+                self.message_queue.clear()
+            self.message_queue.append([osc_address, osc_args])
+            # Tell async there is a message
+            self.flag.set()
 
     # This message wil be called from either send message, or when the
     # rate limiter times out
-    def _send_message(self):
-        if (self.min_send_interval > 0 and self.rate_limit_mode == 'buffer' and
-            len(self.message_queue) > 0
-        ):
-            # take oldest message from queue and prep to send
-            next_message = self.message_queue.popleft()
-            self._osc_address = next_message[0]
-            self._osc_args = next_message[1]
-            if len(self.message_queue) > 0:
-                if self.tx_buffer_timer:
-                    self.tx_buffer_timer.cancel()
-                self._start_tx_timer()
-            else:
-                if self.tx_buffer_timer:
-                    self.tx_buffer_timer.cancel()
-                self.tx_buffer_timer = None
-        # Check _osc_address again, as it might have been cleared by a
-        # rate-limit return
-        if self._osc_address is not None:
-            self.udp_client.send_message(self._osc_address, self._osc_args)
+    async def _send_message(self):
+        """
+        When Async flag is set will check if time to send message
+        Also handles clearing flag when deque empty.
+        """
+        while True:
+            # Waiting for async flag to be set
+            await self.flag.wait()
+            # If there is no min send interval, or interval has passed
+            if (self.min_send_interval == 0 or
+                self.min_send_interval < (time.time() - self.last_send_time)):
+                # take oldest message from queue and prep to send
+                try:
+                    next_message = self.message_queue.popleft()
+                    osc_address = next_message[0]
+                    osc_args = next_message[1]
+                    self.udp_client.send_message(osc_address, osc_args)
+                    self.last_send_time = time.time()
+                except IndexError:
+                    logger.error("no messages in queue, asyncio flag error")
+            if not self.message_queue or self.rate_limit_mode == 'drop':
+                self.flag.clear()
+            
             # logger.info(
-            #     f"Sent OSC message '{self._osc_address}', '{self._osc_args}' "
+            #     f"Sent OSC message '{osc_address}', '{sosc_args}' "
             #     f"to {self.tx_udp_ip}:{self.tx_port}"
             # )
-            self._osc_address = None
-
-    # starts the timer for managing min_send_interval if set
-    def _start_tx_timer(self):
-        if not self.tx_buffer_timer:
-            self.tx_buffer_timer = threading.Timer(
-                self.min_send_interval,
-                self._send_message
-            )
-            self.tx_buffer_timer.start()
 
     # Start the server
     def _run_server(self):
