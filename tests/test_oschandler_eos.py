@@ -8,16 +8,16 @@ In this file, or anytime need to use input() command add -s
 pytest -s test_files\test_oschandler_eos.py
 """
 
+import logging
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 ##################################################################################
 
-import logging
-from oschandler import OSCHandler
+from osc.logging_config import setup_logging
+from osc.oschandler import OSCHandler
 
 # Constants, change for your test environment
-LOG_FILE = 'test_oschandler.log'
 RX_PORT = 8001
 TX_PORT = 8000
 TX_IP = '127.0.0.1'
@@ -27,14 +27,8 @@ OSC_TX_STRING = '/eos/cmd/gobo_select/next'
 OSC_TX_ARGS = ['next']
 
 # Setup logging to file with UTF-8 encoding
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
+setup_logging()
+logger = logging.getLogger(__name__)
 
 osc_manager = OSCHandler(mode='txrx', tx_udp_ip=TX_IP, tx_port=TX_PORT, rx_port=RX_PORT)
 

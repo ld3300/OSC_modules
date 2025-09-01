@@ -19,10 +19,11 @@ This script was created with the help of AI.
 import logging
 import time
 import threading
+from collections import deque
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.udp_client import SimpleUDPClient
 from pythonosc.osc_server import BlockingOSCUDPServer
-from collections import deque
+from osc.logging_config import setup_logging
 
 # Constants
 """
@@ -34,6 +35,7 @@ OSC_RECEIVE_DECLUTTER_TIME = 0.5
 OSC_RECEIVE_DECLUTTER = True
 
 # Logger
+setup_logging()
 logger = logging.getLogger(__name__)
 
 class OSCHandler:

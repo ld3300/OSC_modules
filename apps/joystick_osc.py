@@ -9,10 +9,12 @@ import logging
 import pygame
 
 from dataclasses import dataclass
+from osc.logging_config import setup_logging
 
 # start with init before being able to assign a joystick instance to
 # read
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # Set up the dataclass for all the axis configurations:

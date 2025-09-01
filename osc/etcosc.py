@@ -10,7 +10,8 @@ import logging
 import threading
 import time
 from collections import deque
-from oschandler import OSCHandler
+from osc.logging_config import setup_logging
+from osc.oschandler import OSCHandler
 
 
 """
@@ -25,7 +26,8 @@ Non-numeric arguments are treated as strings
 """
 
 
-# Logger 
+# Logger
+setup_logging()
 logger = logging.getLogger(__name__)
 
 

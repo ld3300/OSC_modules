@@ -2,6 +2,10 @@
 
 from pythonosc.udp_client import SimpleUDPClient
 import time
+import logging
+from osc.logging_config import setup_logging
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # OSC target IP and port
 ip = "127.0.0.1"

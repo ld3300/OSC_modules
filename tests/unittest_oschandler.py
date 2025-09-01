@@ -5,8 +5,12 @@ Unit tests for the OSCHandler module using Python's built-in unittest framework.
 """
 
 import unittest
-from oschandler import OSCHandler
+from osc.oschandler import OSCHandler
 import logging
+from osc.logging_config import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 class TestOSCHandler(unittest.TestCase):
     def setUp(self):
@@ -84,5 +88,5 @@ class TestOSCHandler(unittest.TestCase):
 
 if __name__ == '__main__':
     # Optionally, configure logging for test output
-    logging.basicConfig(level=logging.CRITICAL)  # Suppress logs during tests
+    logger.basicConfig(level=logging.CRITICAL)  # Suppress logs during tests
     unittest.main()
