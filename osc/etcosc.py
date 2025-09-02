@@ -1,18 +1,4 @@
-"""
-This script was created with the help of AI.
-"""
-
-# TODO: - refactor lower oschandler to make sure it can only be
-#       initialized once per tx port
-#       - Add timing to limit wheel output to 
-
-import logging
-import threading
-import time
-from collections import deque
-from osc.logging_config import setup_logging
-from osc.oschandler import OSCHandler
-
+# This script was created with the help of AI.
 
 """
 A wrapper for the OSCHandler module to provide high-level, 
@@ -25,6 +11,23 @@ Without a decimal are 32-bit integer
 Non-numeric arguments are treated as strings
 """
 
+# TODO: - refactor lower oschandler to make sure it can only be
+#           initialized once per tx port
+#       - consider adding the etc filter command
+#       - method for etc subscribe command
+#       - determine differences in the different console OSC address
+#           formats
+
+import logging
+import threading
+import time
+from collections import deque
+from osc.logging_config import setup_logging
+from osc.oschandler import OSCHandler
+
+
+# How often to send ping command to the console
+PING_FREQUENCY = 1.0
 
 # Logger
 setup_logging()
@@ -42,7 +45,8 @@ class etcosc:
         tx_port=None,
         rx_udp_ip='0.0.0.0',
         rx_port=None,
-        ping=True
+        ping=True,
+        ping_frequency=PING_FREQUENCY
     ):
         """
         When initialized, set following:
@@ -65,8 +69,8 @@ class etcosc:
         network interface. Use if expressly need to control which
         interface is listening. This should rarely be needed.
         ping argument requires txrx, it will send ping command every 
-        0.5 seconds and calculate latency. Shouldn't need to disable
-        for most cases. Calling script can receive latency.
+        ping_frequency seconds and calculate latency. Shouldn't need to
+        disable for most cases. Calling script can receive latency.
         """
         self.mode=mode
         self.tx_udp_ip=tx_udp_ip
@@ -80,7 +84,8 @@ class etcosc:
         self.ping_queue = deque(maxlen=10)
         self.ping_latency = 0
         # How often we should send a ping message
-        self.ping_timer = 0.5
+        self.ping_timer = ping_frequency
+        self.ping_started = False
 
         self.osc_handler = OSCHandler(
             mode=self.mode,
@@ -96,7 +101,7 @@ class etcosc:
             f"rx_udp_ip={self.rx_udp_ip}"
             f"rx_port={self.rx_port}"
         )
-        if self.mode == "txrx" and ping:
+        if self.mode == "txrx" and ping and self.ping_timer > 0:
             self._start_ping()
 
     # Send message directly to oschandler
@@ -112,7 +117,6 @@ class etcosc:
         self.osc_handler.send_message(address, args)
         logger.info(f"sent {address} {args}")
 
-    # TO DO: determine console command differences
     def define_console(self, console='eos'):
         """
         ## COMMANDS HAVE NOT YET BEEN ADAPTED TO COBALT AND CS FORMAT!
@@ -181,24 +185,6 @@ class etcosc:
             return
         logger.info(f"OSC address {self.base_address}...")
 
-        # if(
-        #     user and 
-        #     user not in ['reset', 'None'] and 
-        #     not isinstance(user, int())
-        # ):
-        #     logger.error("invalid user value. Must be number, None, or"
-        #         "'reset'"
-        #     )
-        #     return
-        # if not self.user or self.user.lower == 'none':
-        #     return
-        # elif self.user.lower == 'reset':
-        #     _address = self.base_address + '/user'
-        #     self.osc_send_raw(_address, [-1])
-        #     return
-        # elif try:
-        #     int(self.user)
-
     # eos tx command line
     # There are 2 command line methods, one as a string, one with all commands
     # as part of the address /eos/cmd/chan/1/at...
@@ -216,22 +202,6 @@ class etcosc:
         command_string = '/'.join(self.base_address,args)
         self.osc_handler.send_message(command_string, '')
         logger.info(f"sent: {command_string})")
-
-
-
-    # eos tx chan and value (percentage or decimal)
-
-    # maybe have tx commands have option for as user, that way it could be set
-    # as a variable or const in higher level script:, which would insert /user/*
-
-    # TEMP test strings
-    # osc = etcosc(mode='tx',tx_udp_ip='127.0.0.1',tx_port=8000)
-    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',ticks=4.0)
-    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',ticks=-7.5,coarse_explicit=True)
-    # osc.eos_send_wheel(wheel_type='param',param='Red Orange',ticks=10.09,fine=True)
-    # osc.eos_send_wheel(wheel_type='index',index='3',ticks=8.0)
-    # osc.eos_send_wheel(wheel_type='index',index='3',ticks=-20.0,coarse_explicit=True)
-    # osc.eos_send_wheel(wheel_type='index',index='3',ticks=35.089,fine=True)
 
     # eos out wheel
     def eos_send_wheel(self,
@@ -303,51 +273,42 @@ class etcosc:
                                                rate_limit_mode='drop')
             self.last_send_interval = send_interval
         self.osc_handler.send_message(_wheel_address, _ticks)
-        # logger sends too many messages due to streaming nature
-        # logger.info(f"sent: {_wheel_address} {_ticks}({type(_ticks)})")
 
     def get_latency(self):
         """
-        Will return a float of the latency being calculated via the
-        /eos/ping command.
+        Will return a float of the latency in seconds being calculated
+        via the /eos/ping command.
         """
         return self.ping_latency
-
-
-        #### eventually add method to check /eos/out for return values
-        #### see lighthack github for subscribe example as well
 
     def _start_ping(self):
         """
         Will start the ping process in a thread
         """
-        self._ping_send_thread = threading.Thread(
-            target=self._ping_send, daemon=True
-        )
-        self._ping_send_thread.start()
-        self._ping_receive_thread = threading.Thread(
-            target=self._ping_receive, daemon=True
-        )
-        self._ping_receive_thread.start()
-        logger.info("ping started")
+        if not self.ping_started:
+            self._ping_send_thread = threading.Thread(
+                target=self._ping_send, daemon=True
+            )
+            self._ping_send_thread.start()
+            self._ping_receive_thread = threading.Thread(
+                target=self._ping_receive, daemon=True
+            )
+            self._ping_receive_thread.start()
+            logger.info("ping started")
+            self.ping_started = True
 
     def _ping_send(self):
         """
         Sends a ping as with time as an arg. Uses
         response to determine latency. Should return an error if no
         response.
+        Timecode float must be sent as a string, EOS cannot handle 
+        floats that large, and returns the wrong args
         """
         ping_base = f"/{self.console}"
         ping_address = f"{ping_base}/ping"
-        # ping_filter_address = f"{ping_base}/filter/add"
-        # ping_filter_string = f"/{self.console}/out/ping"
-        # Use this to limit the responses received from console, I think this
-        # would actually need to be a different function so it isn't sending
-        # the filter every ping
-        # self.osc_handler.send_message(ping_filter_address, ping_filter_string)
-        # ping_time = f"{time.time()}"
         while True:
-            ping_time = time.time()
+            ping_time = str(time.time())
             self.ping_queue.append(ping_time)
             self.osc_handler.send_message(ping_address, ping_time)
             time.sleep(self.ping_timer)
@@ -364,17 +325,36 @@ class etcosc:
         self.osc_handler.register_osc_listener(ping_address,
                                                self._ping_handler)
         self.osc_handler.start_receiving()
-        # in _start_ping also set up the receiver, this will be the handler
-        # get arg from /etc/out/ping
-        # pop from self.ping_queue. If received argument is older than
-        # pop'd argument, than a ping was lost, logger.error this
-        # if argument = pop'd value than compare that time to current
-        # time.time() to calculate latency. save to self.ping_latency in
-        # seconds
 
+    def _ping_handler(self, address, *args):
+        """
+        When console returns a ping (/eos/out/ping args) it gets passed
+        here. Checks for lost pings and calculates the latency from
+        the sent timestamp to the current time when console returns
+        that same timestamp
+        """
+        try:
+            ping_return = float(args[0])
+        except Exception:
+            logger.warning(f"Could not parse ping_return: {args[0]}")
+            return
+        # Search through queue for ping match
+        matched = False
+        while self.ping_queue:
+            ping_sent = float(self.ping_queue.popleft())
+            if ping_return == ping_sent:
+                matched = True
+                self.ping_latency = round(time.time() - ping_return, 6)
+                logger.info(
+                    f"Rx: {address} {ping_return} Latency:{self.ping_latency}"
+                )
+                break
+            else:
+                logger.info(f"Ping Lost: sent {ping_sent} return {ping_return}")
+        # If no match in the ping queue
+        if not matched:
+            logger.warning(f"Returned ping {ping_return} had no match in queue")
 
-    def _ping_handler(address, *args):
-        logger.info("Received: %s %s", address, args)
 
 #         Example C code filter and subscribe
 #           // Add a filter so we don't get spammed with unwanted OSC

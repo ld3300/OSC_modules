@@ -13,36 +13,35 @@ pytest -s test_files\test_etcosc.py
 import time
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0,
+                os.path.abspath(
+                os.path.join(
+                os.path.dirname(__file__), '../../')))
 ##################################################################################
 
 import logging
 from osc.etcosc import etcosc
-from apps.joystick_osc import JoystickOSC
 from osc.logging_config import setup_logging
 
 # Constants, change for your test environment
-LOG_FILE = 'test_oschandler.log'
 RX_PORT = 8001
 TX_PORT = 8000
 TX_IP = '127.0.0.1'
 
-# Setup Logging
+# Setup logging to file
 setup_logging()
 logger = logging.getLogger(__name__)
 
 osc_manager = etcosc(
-    mode='tx',
+    mode='txrx',
     tx_udp_ip=TX_IP,
     tx_port=TX_PORT,
     rx_port=RX_PORT
 )
 
-joystick = JoystickOSC(osc=osc_manager)
 
-def my_handler(address, *args):
-    print("Received:", address, args)
-    logger.info("received OSC message: %s %s", address, args)
+# def my_handler(self, address, *args):
+#     logger.info(f"received OSC message: {address} {args}")
 
 
 # osc_manager.start_receiving()
@@ -51,9 +50,9 @@ testmode = 'txrx'
 if testmode in 'txrx':
     print('txrx passed')
 
-while True:
-    # user_input = input(" q + enter for quit: \n")
-    # if user_input == 'q':
-    #     break
-    joystick.poll()
-    time.sleep(0.1)
+if __name__ == "__main__":
+    while True:
+        # user_input = input(" q + enter for quit: \n")
+        # if user_input == 'q':
+        #     break
+        time.sleep(0.5)

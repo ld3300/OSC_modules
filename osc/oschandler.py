@@ -224,6 +224,7 @@ class OSCHandler:
             #     f"to {self.tx_udp_ip}:{self.tx_port}"
             # )
             self._osc_address = None
+            self._osc_args = None
 
     # starts the timer for managing min_send_interval if set
     def _start_tx_timer(self):

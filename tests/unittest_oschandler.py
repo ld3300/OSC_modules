@@ -88,5 +88,5 @@ class TestOSCHandler(unittest.TestCase):
 
 if __name__ == '__main__':
     # Optionally, configure logging for test output
-    logger.basicConfig(level=logging.CRITICAL)  # Suppress logs during tests
+    # logger.basicConfig(level=logging.CRITICAL)  # Suppress logs during tests
     unittest.main()

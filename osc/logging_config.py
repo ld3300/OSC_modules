@@ -13,7 +13,7 @@ import os
 from logging.handlers import TimedRotatingFileHandler
 from platformdirs import user_log_dir
 
-APP_NAME = "loggingconfig"
+APP_NAME = "OSCModules"
 APP_AUTHOR = "DavidOSmith"
 
 # Setup logging if not already started
@@ -33,10 +33,10 @@ def setup_logging():
         )
         logging.basicConfig(
             level=logging.INFO,
-            format="%(asctime)s %(levelname)s %(name)s: %(messages)s",
+            format="{%(asctime)s %(levelname)s %(name)s: %(message)s}",
             handlers=[
                 timed_handler,
                 logging.StreamHandler()
             ]
         )
-        logging.info(f"Logging to: {log_file}")
+        # logging.info(f"Logging to: {log_file}")

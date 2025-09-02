@@ -6,10 +6,19 @@ This script was created with the help of AI.
 ####        FIX remap to constrain to the min and max values
 
 import logging
+import os
 import pygame
-
+import sys
 from dataclasses import dataclass
-from osc.logging_config import setup_logging
+print(sys.path)
+
+# Path to root directory for project methods
+sys.path.insert(0,
+                os.path.abspath(
+                os.path.join(
+                os.path.dirname(__file__), '../')))
+
+from osc.logging_config import setup_logging  # noqa: E402
 
 # start with init before being able to assign a joystick instance to
 # read
@@ -43,7 +52,7 @@ class AxisConfig:
     calibration_min: float
     axis_lock_enable: bool
 
-
+########################################################################
 ### User defined global variables ######################################
 # Logitech Extreme 3d - Axes x 4 - range -1.0 to 1.0
 # 12 x buttons
@@ -393,7 +402,7 @@ class JoystickOSC:
             if button_function == 'fine_mode':
                 # Coarse/fine mode, True is fine
                 self.wheel_fine = state
-                logging.info(f"Coarse/Fine mode set to {state}")
+                logger.info(f"Coarse/Fine mode set to {state}")
                 # Check if we are locking controls when going from
                 # Coarse to fine
                 if(
@@ -416,7 +425,7 @@ class JoystickOSC:
             # Generate string and send osc
             return #temporary filler
         else:
-            logging.error(f"button function: {op_mode} not valid")
+            logger.error(f"button function: {op_mode} not valid")
             return
     
     def _lock_axes(self):
@@ -438,7 +447,7 @@ class JoystickOSC:
             zip(lock_enable, self.axis_active)
         ]
         if not self._check_unlock():
-            logging.info("Joystick Locked, home axes")
+            logger.info("Joystick Locked, home axes")
 
     def _check_unlock(self):
         """
