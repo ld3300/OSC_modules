@@ -274,6 +274,73 @@ class etcosc:
             self.last_send_interval = send_interval
         self.osc_handler.send_message(_wheel_address, _ticks)
 
+    def osc_settings_reset(self):
+        """
+        This function is to reset OSC specific settings. It will clear
+        active switches, OSC User ID, Wheel/Switch coarse/fine mode.
+        Also 'Send ALL implicit OSC output commands'
+        """
+        return  # Placeholder
+
+    def get_software_version(self):
+        """
+        Will return a string with the software version x.x.x....
+        """
+        # check if txrx, send /eos/get/version, handle /eos/out/get/version
+        return # Placeholder
+
+    def get_counts(self):       # Should these all be separate calls, or one call with type as an argument?
+        """ 
+        Check txrx
+        returns an uint32 with a count of the item sent
+        /eos/get/<item>/count
+        Can be patch, cuelist, /cue/<clue list number>, group, macro,
+        sub, preset, ip(intensity palette), fp(focus palette),
+        cp(color palette), bp(beam palette), curve, fx, snap(snapshot),
+        pixmap, ms(magic sheet)
+        """
+        return # Placeholder
+    
+    def get_details(self):   # again, should this be separate methods?
+        """
+        Use to get details after the get_counts. using index number
+        all start with /eos/get example: /eos/get/patch/index/<index #>
+        all end with /index/<index #>
+        can be: patch, cuelist, /cue/<cue list number>, group, macro,
+        preset, ip, fp, cp, bp, curve, fx, snap, pixmap, ms
+        Args for each response will be:
+            <uint32: list index><string: UID>...See show control user
+            guide starting end page 70 for information about each type
+        Response will start with /eos/out/get then:
+        patch: patch/<chan #>/<part #>/list/<list index>/<list count>
+        /cuelist/<cue list #>/list/<list index>/<list count>
+        rest of the items will follow format
+            (replace 'group' with target):
+        /group/<group #>/list/<list index>/<list count>
+        """
+        return #placeholder
+    
+    # TODO: Make it so this function allows subscribing to specific changes
+    # When notify received, look for desired data then request detailed
+    # show data via target number or UID. See show control user guide
+    # page 69
+    def subscribe(self):
+        """
+        /eos/subscribe 0=unsubscribe 1=subscribe
+        Will send commands when show data changes. Includes all items
+        from get_counts.
+        /eos/out/notify/... first arg:
+            <uint32: sequence #><list of targets that changed>
+            targets are specific OSC Numbers or number ranges
+        """
+
+    def set_live_blind(self, mode='live'):
+        """
+        Set console to live or blind mode
+        Args: set to 'live' or 'blind'
+        """
+        self.eos_send_cmd(mode.lower())
+
     def get_latency(self):
         """
         Will return a float of the latency in seconds being calculated
@@ -356,29 +423,7 @@ class etcosc:
             logger.warning(f"Returned ping {ping_return} had no match in queue")
 
 
-#         Example C code filter and subscribe
-#           // Add a filter so we don't get spammed with unwanted OSC
-#  messages
-# from Eos
-#   OSCMessage filter("/eos/filter/add");
-#   filter.add("/eos/out/param/*");
-#   filter.add("/eos/out/ping");
-#   SLIPSerial.beginPacket();
-#   filter.send(SLIPSerial);
-#   SLIPSerial.endPacket();
 
-#   // subscribe to Eos pan & tilt updates
-#   OSCMessage subPan("/eos/subscribe/param/pan");
-#   subPan.add(SUBSCRIBE);
-#   SLIPSerial.beginPacket();
-#   subPan.send(SLIPSerial);
-#   SLIPSerial.endPacket();
-
-#   OSCMessage subTilt("/eos/subscribe/param/tilt");
-#   subTilt.add(SUBSCRIBE);
-#   SLIPSerial.beginPacket();
-#   subTilt.send(SLIPSerial);
-#   SLIPSerial.endPacket();
 
     # eos out switch, with option for timeout to set to 0 (so parameter
     #  doesn't move forever)
@@ -415,9 +460,6 @@ class etcosc:
 
     # IS THERE A WAY TO CHECK IF A USER EXISTS BEFORE SENDING AS THAT USER,
     # TEST A FALSE USER TO SEE WHAT EOS RETURNS
-
-    # def eos_ping, must be txrx, send timestamp as arg to determine latency
-    # eos will send the same arg back
 
     # parse string for /eos/out/cmd and /eos/out/user/*/cmd
 
