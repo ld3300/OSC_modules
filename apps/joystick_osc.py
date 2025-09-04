@@ -6,17 +6,17 @@ This script was created with the help of AI.
 ####        FIX remap to constrain to the min and max values
 
 import logging
-import os
+# import os
 import pygame
 import sys
 from dataclasses import dataclass
 print(sys.path)
 
 # Path to root directory for project methods
-sys.path.insert(0,
-                os.path.abspath(
-                os.path.join(
-                os.path.dirname(__file__), '../')))
+# sys.path.insert(0,
+#                 os.path.abspath(
+#                 os.path.join(
+#                 os.path.dirname(__file__), '../')))
 
 from osc.logging_config import setup_logging  # noqa: E402
 
@@ -90,7 +90,7 @@ BUTTON_OPERATION = (
 # calibration_max/min to the range +-0.000 to Ticks max value
 # These will apply to x, y, z axes and modes unless defined explicitly
 # below:
-DEADZONE_DEFAULT = 0.2
+DEADZONE_DEFAULT = 0.3
 TICKS_COARSE_MAX_DEFAULT = 3.0
 TICKS_FINE_MAX_DEFAULT = 10.0
 
@@ -500,8 +500,8 @@ class JoystickOSC:
         if self.wheel_param2:
             axis_param = AXES_CONFIG[axis].param2
         # check if axis inverted
-        if AXES_CONFIG[axis].invert:
-            ticks *= -1
+        # if AXES_CONFIG[axis].invert:
+        #     ticks *= -1
         # Send to etcosc.py
         if axis_param and not axis_param.lower() == 'none':
             self.etcosc.eos_send_wheel(wheel_type='param',

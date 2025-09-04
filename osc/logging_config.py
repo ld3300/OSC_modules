@@ -18,7 +18,7 @@ APP_AUTHOR = "DavidOSmith"
 
 # Setup logging if not already started
 def setup_logging():
-    log_dir = user_log_dir(APP_NAME)
+    log_dir = user_log_dir(appname=APP_NAME, appauthor=APP_AUTHOR)
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "oscmodules.log")
 

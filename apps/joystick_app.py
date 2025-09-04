@@ -10,10 +10,10 @@ import time
 import sys
 import os
 import logging
-sys.path.insert(0,
-                os.path.abspath
-                (os.path.join
-                (os.path.dirname(__file__), '../')))
+# sys.path.insert(0,
+#                 os.path.abspath
+#                 (os.path.join
+#                 (os.path.dirname(__file__), '../')))
 
 
 from osc.etcosc import etcosc
@@ -55,4 +55,4 @@ while True:
     # if user_input == 'q':
     #     break
     joystick.poll()
-    time.sleep(0.1)
+    time.sleep(0.05)

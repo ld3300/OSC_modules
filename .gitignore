@@ -26,4 +26,9 @@ venv/
 .env/
 env/
 
+# pyinstaller build artifacts
+build/
+dist/
+*.egg-info/
+
 *.code-workspace
