@@ -2,9 +2,6 @@
 This script was created with the help of AI.
 """
 
-#### TODO: NEXT Have code reviewed, then have sendAxis output to EOS
-####        FIX remap to constrain to the min and max values
-
 import logging
 import pygame
 from dataclasses import dataclass
@@ -179,7 +176,7 @@ _USER = pygame.USEREVENT
 
 # Items for pygame event filter:
 _JOYSTICK_EVENTS = (_QUIT, _AXIS, _BALL, _HAT, _BUTTONDOWN, _BUTTONUP, _USER)
-
+_PYGAME_FPS = 60
 class JoystickOSC:
     """
     Handles joystick pygame calls and modes:
@@ -213,6 +210,7 @@ class JoystickOSC:
         self.wheel_param2 = False
         # Used to make sure all axes are returned to zero when mode change
         self.joystick_lock = [False,False,False,False]
+        self.axis_round_robin = 0
 
         pygame.init()
         stick = pygame.joystick
@@ -221,7 +219,8 @@ class JoystickOSC:
         # Sets which event types the pygame library is allowed to place
         # in the events list
         self.event.set_allowed(_JOYSTICK_EVENTS)
-
+        # Set up a clock to prevent pygame from using 100% CPU
+        self.clock = pygame.time.Clock()
             # Get a list of connected Joysticks
         joysticks = [stick.Joystick(x) for x in range (stick.get_count())]
 
@@ -265,14 +264,38 @@ class JoystickOSC:
         The events argument is provided mostly for special cases or
         testing. Should not be needed for most applicaitons.
         """
+        # We want to get the current value, so even if an event wasn't
+        # generated we can continue to stream the output
+        self._probe_axes()
         if not events:
             # If any axis are active we want to get their values and force
             # an event for it
-            self._probe_axes()
+            # Let's check what axis events we have
             events = self.event.get(pump=True)
         if events:
             self._readEvents(events)
-        
+        # If any axis still has a non zero, meaning it didn't generate an
+        # event, but it did have a value when directly probed
+        # lets send it's raw data to be handled as well.
+        num_active = sum(self.axis_active)
+        active_axes = [0] * num_active
+        active_index = 0
+        for x in range(len(self.axis_active)):
+            if self.axis_active[x]:
+                active_axes[active_index] = x
+                active_index += 1
+        for x in range(num_active):
+            # This rotates the axis that is output to prevent a race condition
+            act_index = (x + self.axis_round_robin) % num_active
+            axis = active_axes[act_index]
+            value = self.axes[axis]
+            if value != 0:
+                self._handleAxes(axis, value)
+        self.clock.tick(_PYGAME_FPS)
+        self.axis_round_robin = (
+            (self.axis_round_robin + 1) %
+            len(self.axes)
+        )
 
     # Sample single event list item, for reference:
     # <Event(1536-JoyAxisMotion {'joy': 0, 'instance_id': 0,
@@ -321,7 +344,7 @@ class JoystickOSC:
         except ZeroDivisionError:
             logger.error("Check _remap values, divide by zero error")
 
-    def _handleAxes(self, axis, value):
+    def _handleAxes(self, axis, value, value_return=False):
         """
         Gets called when an axis event is read from pygame.
         maps the axis value to range we want.
@@ -332,6 +355,7 @@ class JoystickOSC:
             value, float
         """
         # if any items in lock are true, unlocked becomes false
+        mapped = 0.0
         self.axes[axis] = value
         unlocked = self._check_unlock()
         # use max and min values from calibration
@@ -359,12 +383,19 @@ class JoystickOSC:
                 self.axis_active[axis] = True
                 mapped = self._remap(value, -dead, axis_min, 0.0, -map_max)
         else:
-            mapped = 0
+            mapped = 0.0
             # if axis is zero turn off active status
             self.axis_active[axis] = False
+        self.axes[axis] = mapped
         # Only send our output if there are no axis locks
         if unlocked and self.axis_active[axis]:
-            self._sendAxis(axis, mapped)
+            if value_return:
+                return mapped
+            else:
+                self._sendAxis(axis, mapped)
+                self.axes[axis] = 0.0
+        else:
+            return 0.0
 
     def _probe_axes(self):
         """
@@ -374,9 +405,9 @@ class JoystickOSC:
         """
         num_axes = len(self.axes)
         for axis in range(num_axes):
-            if self.axis_active[axis]:
-                axis_value = self.joystick.get_axis(axis)
-                self._handleAxes(axis, axis_value)
+            axis_value = self.joystick.get_axis(axis)
+            value = self._handleAxes(axis, axis_value, value_return=True)
+            self.axes[axis] = value
 
     # When event handler receives a button press, send it here
     def _handleButton(self, button, state):

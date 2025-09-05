@@ -47,4 +47,4 @@ while True:
     # if user_input == 'q':
     #     break
     joystick.poll()
-    time.sleep(0.05)
+    # time.sleep(0.05)

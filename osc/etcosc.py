@@ -86,6 +86,8 @@ class etcosc:
         # How often we should send a ping message
         self.ping_timer = ping_frequency
         self.ping_started = False
+        self.wheel_tracker = {}
+        self.wheel_deque = deque(maxlen=50)
 
         self.osc_handler = OSCHandler(
             mode=self.mode,
@@ -211,7 +213,8 @@ class etcosc:
         ticks=0.0,
         fine=False,
         coarse_explicit=False,
-        send_interval=0.05
+        send_interval=0.05,
+        stale_interval=0.75
     ):
         """
         Sends the OSC Wheel command.
@@ -246,8 +249,17 @@ class etcosc:
         except ValueError:
             logger.error(f"ticks={ticks} must be a number")
             return
+        # We will use the current time to remove stale data in case of
+        # long call periods between this method
+        current_time = time.time()
+        wheel_dict = {
+            'address': '',
+            'ticks': ticks,
+            'age': current_time
+        }
         _wheel_address = self.base_address
         _mode = ''
+        param_key = param
         if fine:
             _mode = '/fine'
         elif coarse_explicit:
@@ -255,24 +267,46 @@ class etcosc:
         if wheel_type.lower() == 'param':
             if not param:
                 logger.error("wheel_type='param' requires param='parameter'")
+                return
             else:
-                _wheel_address = f"{_wheel_address}/wheel{_mode}/{param}"
+                wheel_dict['address'] = f"{_wheel_address}/wheel{_mode}/{param}"
         elif wheel_type.lower() == 'index':
             try:
                 _index = int(index)
-                _wheel_address = (
+                wheel_dict['address'] = (
                     f"{_wheel_address}/active/wheel{_mode}/{_index}")
+                param_key = f"{index}"
             except ValueError:
                 logger.error(f"index={index} not a valid number")
                 return
         else:
             logger.error(f"wheel_type={wheel_type} not recognized")
             return
-        if send_interval != self.last_send_interval:
-            self.osc_handler.set_tx_rate_limit(min_send_interval=send_interval,
-                                               rate_limit_mode='drop')
-            self.last_send_interval = send_interval
-        self.osc_handler.send_message(_wheel_address, _ticks)
+        # Check if item already exists in dictionary. if so update dictionary
+        # item, if not add it and add to deque
+        if param_key not in self.wheel_tracker:
+            self.wheel_deque.append(param_key)
+        self.wheel_tracker[param_key] = wheel_dict
+        # We will pop from the deque and make sure the data is fresh enough
+        fresh_data = False
+        to_output = {}
+        while self.wheel_deque and not fresh_data:
+            deque_key = self.wheel_deque.popleft()
+            to_output = self.wheel_tracker.pop(deque_key)
+            age_check = to_output['age']
+            if current_time < age_check + stale_interval:
+                fresh_data = True
+        # Send value out
+        if fresh_data:
+            if send_interval != self.last_send_interval:
+                self.osc_handler.set_tx_rate_limit(
+                    min_send_interval=send_interval,
+                    rate_limit_mode='drop'
+                )
+                self.last_send_interval = send_interval
+            send_address = to_output['address']
+            send_ticks = to_output['ticks']
+            self.osc_handler.send_message(send_address, send_ticks)
 
     def osc_settings_reset(self):
         """
