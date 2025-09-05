@@ -23,7 +23,7 @@ from collections import deque
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.udp_client import SimpleUDPClient
 from pythonosc.osc_server import BlockingOSCUDPServer
-from osc.logging_config import setup_logging
+from osc.logging_config import setup_logging, osc_logger
 
 # Constants
 """
@@ -219,10 +219,11 @@ class OSCHandler:
         # rate-limit return
         if self._osc_address is not None:
             self.udp_client.send_message(self._osc_address, self._osc_args)
-            # logger.info(
-            #     f"Sent OSC message '{self._osc_address}', '{self._osc_args}' "
-            #     f"to {self.tx_udp_ip}:{self.tx_port}"
-            # )
+            logger.log(
+                osc_logger(),
+                f"Sent OSC: '{self._osc_address}', '{self._osc_args}' "
+                f"to {self.tx_udp_ip}:{self.tx_port}"
+            )
             self._osc_address = None
             self._osc_args = None
 

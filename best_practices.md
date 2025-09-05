@@ -1,5 +1,7 @@
 # Best Practices and Conversation Conventions
 
+**Never provide code snippets, suggestions, file edit recommendations, or diffs unless the user has explicitly requested them.**
+
 This document describes the standards for collaborative work, code review, and communication for this project, especially with a focus on Python and onboarding new contributors. It aims to ensure clarity, consistency, transparency, and adherence to effective Python practices.
 
 ## Code Review and Style
@@ -27,9 +29,7 @@ This document describes the standards for collaborative work, code review, and c
 - **Documentation Standards:**
   - All *.py modules must begin with the following notice:
     ```
-    """
-    This script was created with the help of AI.
-    """
+    ### This script was created with the help of AI. ###
     ```
   - Each function, method, and class should include a clear docstring describing its purpose, parameters, and return values.
   - When discussing best practices without generating code, thoroughly explain reasoning for each recommendation.

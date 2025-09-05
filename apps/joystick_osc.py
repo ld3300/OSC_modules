@@ -6,19 +6,9 @@ This script was created with the help of AI.
 ####        FIX remap to constrain to the min and max values
 
 import logging
-# import os
 import pygame
-import sys
 from dataclasses import dataclass
-print(sys.path)
-
-# Path to root directory for project methods
-# sys.path.insert(0,
-#                 os.path.abspath(
-#                 os.path.join(
-#                 os.path.dirname(__file__), '../')))
-
-from osc.logging_config import setup_logging  # noqa: E402
+from osc.logging_config import setup_logging, raw_logger
 
 # start with init before being able to assign a joystick instance to
 # read
@@ -294,6 +284,7 @@ class JoystickOSC:
         for event in events:
             if event and hasattr(event, 'instance_id'):
                 if event.instance_id == 0:
+                    logger.log(raw_logger(), f"pygame event: {event}")
                     if event.type == _AXIS:
                         self._handleAxes(event.axis, event.value)
                     elif event.type == _BUTTONDOWN:

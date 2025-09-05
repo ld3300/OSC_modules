@@ -1,6 +1,5 @@
 # test scripts to/from ETC EOS
 import logging
-import time
 from osc.oschandler import OSCHandler
 from osc.logging_config import setup_logging
 

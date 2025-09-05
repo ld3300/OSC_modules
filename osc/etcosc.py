@@ -95,11 +95,11 @@ class etcosc:
             rx_port=self.rx_port
         )
         logger.info(
-            f"OSCHandler sent with ,mode={self.mode}"
-            f"tx_udp_ip={self.tx_udp_ip}"
-            f"tx_port={self.tx_port}"
-            f"rx_udp_ip={self.rx_udp_ip}"
-            f"rx_port={self.rx_port}"
+            f"OSCHandler sent with ,mode={self.mode} "
+            f"tx_udp_ip={self.tx_udp_ip} "
+            f"tx_port={self.tx_port} "
+            f"rx_udp_ip={self.rx_udp_ip} "
+            f"rx_port={self.rx_port} "
         )
         if self.mode == "txrx" and ping and self.ping_timer > 0:
             self._start_ping()

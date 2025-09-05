@@ -8,11 +8,6 @@ In this file, or anytime need to use input() command add -s
 pytest -s test_files\test_etcosc.py
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-##################################################################################
-
 import logging
 from osc.oschandler import OSCHandler
 from osc.logging_config import setup_logging

@@ -7,15 +7,7 @@ by editing joystick_osc.py in the User Defined Global Variables section
 """
 
 import time
-import sys
-import os
 import logging
-# sys.path.insert(0,
-#                 os.path.abspath
-#                 (os.path.join
-#                 (os.path.dirname(__file__), '../')))
-
-
 from osc.etcosc import etcosc
 from apps.joystick_osc import JoystickOSC
 from osc.logging_config import setup_logging

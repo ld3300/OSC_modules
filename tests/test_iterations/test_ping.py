@@ -11,13 +11,6 @@ pytest -s test_files\test_etcosc.py
 """
 
 import time
-import sys
-import os
-sys.path.insert(0,
-                os.path.abspath(
-                os.path.join(
-                os.path.dirname(__file__), '../../')))
-##################################################################################
 
 import logging
 from osc.etcosc import etcosc
