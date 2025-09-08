@@ -1,14 +1,21 @@
 """
 This script was created with the help of AI.
-This script will provide methods for ETC palette management
+Provide methods for ETC object management
 """
 
 import logging
 from dataclasses import dataclass
 from osc.logging_config import setup_logging, raw_logger
 
-# start with init before being able to assign a joystick instance to
-# read
+# TODO:
+# Accept a list of types in your method—defaulting to “all” if none are passed.
+# Example: get_counts(types=None) where None means ALL_TYPES.
+# This lets you support all use cases elegantly: single, some, or all types.
+# Document your supported types in an (internal or public) constant so users can introspect and call with confidence.
+# Internally, loop over the provided types and perform the queries as needed.
+# Optionally, provide simple wrappers for common cases if you find you or other users frequently request certain groups.
+
+# make patch and cuelist and cue/cuelist# counts their own methods
 
 setup_logging()
 logger = logging.getLogger(__name__)
