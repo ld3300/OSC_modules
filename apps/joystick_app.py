@@ -6,10 +6,9 @@ Logitech Extreme 3d. Configuration and tuning variables can be changed
 by editing joystick_osc.py in the User Defined Global Variables section
 """
 
-import time
 import logging
 from osc.etcosc import etcosc
-from apps.joystick_osc import JoystickOSC
+from apps.modules.joystick_osc import JoystickOSC
 from osc.logging_config import setup_logging
 
 # Constants, change for your test environment
