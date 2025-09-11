@@ -51,7 +51,8 @@ class OSCHandler:
         tx_udp_ip=None,
         tx_port=None,
         rx_udp_ip='0.0.0.0',
-        rx_port=None
+        rx_port=None,
+        rx_autostart=True
         ):
         """
         When initialized, set following:
@@ -70,6 +71,9 @@ class OSCHandler:
         rx_udp_ip is optional, the default will receive from any device
         network interface. Use if expressly need to control which
         interface is listening. This should rarely be needed.
+        The OSC start_receiving() will automatically begin on init if 'rx' is part of
+        the mode string. If you set rx_autostart to False you will need to call
+        start_receiving() manually.
         """
         self.mode = mode
         self.tx_udp_ip = tx_udp_ip
@@ -92,6 +96,12 @@ class OSCHandler:
             f"tx_udp_ip='{self.tx_udp_ip}' tx_port={self.tx_port} "
             f"rx_port={self.rx_port}"
         )
+        
+        # Initialize Dispatcher to handle OSC inputs OSC UDP client and
+        # server as necessary
+        self.dispatcher = Dispatcher()
+        self.dispatcher.set_default_handler(self.default_handler)
+        
         # This segment checks that the necessary parameters are set and
         # will send an error message about what needs fixing
         if(self.mode not in ['tx', 'rx', 'txrx']):
@@ -108,6 +118,8 @@ class OSCHandler:
                     self.error_list.append("rx_port=#### must be set for "
                         "receiving"
                     )
+                elif rx_autostart:
+                    self.start_receiving()
         if self.error_list:
             error_string = ""
             for error in self.error_list:
@@ -119,11 +131,6 @@ class OSCHandler:
         # to transmit or txrx
         if 'tx' in self.mode:
             self.udp_client = SimpleUDPClient(self.tx_udp_ip, self.tx_port)
-
-        # Initialize Dispatcher to handle OSC inputs OSC UDP client and
-        # server as necessary
-        self.dispatcher = Dispatcher()
-        self.dispatcher.set_default_handler(self.default_handler)
 
     # set up or change the rate limit handling in case the receiving
     # device cannot keep up with data stream
@@ -361,9 +368,10 @@ class OSCHandler:
                  self.dispatcher
             )
         # Start the server in a background thread to be non-blocking
-        self._server_thread = threading.Thread(
-            target=self._run_server,
-            daemon=True
-        )
-        self._server_thread.start()
-        logger.info("OSC server started in background thread.")
+        if not hasattr(self, '_server_thread') or not self._server_thread.is_alive():
+            self._server_thread = threading.Thread(
+                target=self._run_server,
+                daemon=True
+            )
+            self._server_thread.start()
+            logger.info("OSC server started in background thread.")

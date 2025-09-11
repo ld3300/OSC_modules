@@ -118,6 +118,15 @@ class etcosc:
             self.last_send_interval = send_interval
         self.osc_handler.send_message(address, args)
         logger.info(f"sent {address} {args}")
+    
+    def osc_receiver_raw(self, address, handler, partial_string=False):
+        """
+        Simple receive OSC raw method
+        """
+        if partial_string:
+            self.osc_handler.register_osc_substring(address, handler)
+        else:
+            self.osc_handler.register_osc_listener(address, handler)
 
     def define_console(self, console='eos'):
         """
@@ -394,7 +403,6 @@ class etcosc:
         ping_address = f"{ping_base}/out/ping"
         self.osc_handler.register_osc_listener(ping_address,
                                                self._ping_handler)
-        self.osc_handler.start_receiving()
 
     def _ping_handler(self, address, *args):
         """

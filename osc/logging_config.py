@@ -31,6 +31,11 @@ OSC_LOGGER_NAME = "osc_output"
 OSC_LOGGER_LEVEL = 26
 OSC_LOGGER_DIR = ALT_LOGGER_DIR
 OSC_LOGGER_MAXBYTES = 1000000
+# Helper logger, for logging ay other info to user_cache_dir
+HELPER_LOGGER_NAME = "helper_output"
+HELPER_LOGGER_LEVEL = 27
+HELPER_LOGGER_DIR = ALT_LOGGER_DIR
+HELPER_LOGGER_MAXBYTES = 1000000
 
 def raw_logger():
     """
@@ -45,6 +50,13 @@ def osc_logger():
     method available for use
     """
     return OSC_LOGGER_LEVEL
+
+def helper_logger():
+    """
+    from osc.logging_config import helper_logger.
+    Use this logger to record any other data for testing or other purposes
+    """
+    return HELPER_LOGGER_LEVEL
 
 # Setup logging if not already started
 def setup_logging():
@@ -107,6 +119,20 @@ def setup_logging():
         osc_handler.setFormatter(default_formatter)
         osc_handler.addFilter(lambda record: record.levelno == OSC_LOGGER_LEVEL)
 
+        # Configure Helper output logger
+        logging.addLevelName(HELPER_LOGGER_LEVEL, HELPER_LOGGER_NAME)
+        helper_dir = HELPER_LOGGER_DIR
+        os.makedirs(helper_dir, exist_ok=True)
+        helper_file = os.path.join(helper_dir, "helper_output.log")
+        helper_handler = RotatingFileHandler(
+            filename=helper_file,
+            maxBytes=HELPER_LOGGER_MAXBYTES,
+            backupCount=1,
+            encoding='utf-8'
+        )
+        helper_handler.setFormatter(default_formatter)
+        helper_handler.addFilter(lambda record: record.levelno == HELPER_LOGGER_LEVEL)
+
         # Configure the handler that outputs the log messages to the console
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(console_formatter)
@@ -117,4 +143,5 @@ def setup_logging():
         root_logger.addHandler(main_handler)
         root_logger.addHandler(raw_handler)
         root_logger.addHandler(osc_handler)
+        root_logger.addHandler(helper_handler)
         root_logger.addHandler(console_handler)
