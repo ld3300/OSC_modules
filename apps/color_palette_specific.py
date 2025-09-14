@@ -229,12 +229,22 @@ def get_cp_params():
     Get all the channel and specific color detail for palette
     """
     global current_cp_params
+    current_chan = 0
+    cp_num = 0
     user_number = 3
-    address_clear_line = f"/eos/user/{user_number}/newcmd"
-    address_blind = f"/eos/user/{user_number}/cmd/blind"
-    address_open_cp = f"/eos/user/{user_number}/cmd/color_palette/#"
-    address_edit = f"/eos/user/{user_number}/cmd/edit"
-    address_select_active = f"/eos/user/{user_number}/cmd/select_active/#"
+    start_string = f"/eos/user/{user_number}"
+    # Define address commands here for easier management
+    address_clear_line = f"{start_string}/newcmd"
+    address_blind = f"{start_string}/cmd/blind"
+    address_open_cp = f"{start_string}/cmd/color_palette/{cp_num}/#"
+    address_edit = f"{start_string}/cmd/edit"
+    address_select_active = f"{start_string}/cmd/select_active/#"
+    address_select_chan = f"{start_string}/cmd/chan/{current_chan}/#"
+    # These are the receiving addresses we need to catch:
+    out_start_string = "/eos/out"
+    out_active_chan = f"{out_start_string}/active/chan"
+    out_active_wheel = f"{out_start_string}/active/wheel"
+    out_hue_sat = f"{out_start_string}/color/hs"
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             logger.info(f"CP File {json_path} Successfully opened, extracting data")
@@ -242,13 +252,6 @@ def get_cp_params():
             # Set console to blind and edit color palette, then softkey edit
             osc_manager.osc_send_raw(address_clear_line)
             osc_manager.osc_send_raw(address_blind)
-            osc_manager.osc_send_raw(address_open_cp)
-            osc_manager.osc_send_raw(address_edit)
-            ############# ADD IF STATEMENT HERE TO DETERMINE IF WE ARE GETTING THE
-            # SELECT ACTIVE RESPONSES, OR THE DATA FOR EACH CHANNEL
-            # To continue see the sample code at bottom from gemini
-            osc_manager.osc_send_raw(address_select_active)
-
             # Loop through all the color palettes
             for cp_uid, cp_obj in data.items():
                 cp_num = cp_obj["palette_num"]
@@ -260,7 +263,6 @@ def get_cp_params():
                 for range_str in cp_obj['chan_ranges']:
                     # we need to separate the starting and ending numbers
                     range_split = range_str.split("-")
-                    print(range_split)
                     start_chan = int(range_split[0])
                     if len(range_split) == 2:
                         end_chan = int(range_split[1])
@@ -268,40 +270,117 @@ def get_cp_params():
                             channel_list.append(chan)
                     elif len(range_split) == 1:
                         channel_list.append(start_chan)
-                    print(channel_list)
-
-                # LOGIC CHECKS WITH DATA:
-                # If a channel is in the by_type list, check that all channels of same
-                #   manufacturer and model are the same values, if so don't record their
-                #   values into the json file. Definitely record if different
-                # Check all channels of same manufacturer and model, if they all have
-                #   the same values add lowest channel number to by type list in file,
-                #   and only record the by type channel's data
-                # Add a top level key to each color palette for by_type_palette that is
-                #   set to True if all of the recorded channels are by type
-
-
-
-
-
-                # Response to Select Active:
-                # /eos/out/active/chan, 31-47,151-166,201-204,213-214,401-423  [100] ETC_Fixtures Vivid_R_11 @ 1067
-                # Regex IDs version of args:
-                # 31-47,151-166,201-204,213-214,401-423 = <ranges>
-                # (double_space) = <unknown_field>
-                # [100] = <intensity> (of first channel in ranges)
-                # (not in this file) = <label> (meaning channel label)
-                # ETC_Fixtures = <manufacturer> (white spaces replaced with underscores)
-                # Vivid_R_11 = <model> (white spaces replaced with underscores)
-                # @ indicates the next number is first patch address of first channel
-                # 1067 <dmx> first channel starting dmx address
-
-
-
+                # Create state object that gets passed to handler
+                current_request_state = {
+                    "request_info": {'request_type': 'select_active',
+                                     'cp_num': cp_num,
+                                     'channel': None},
+                    'responses': [],
+                    'timer': None,
+                    'completion_event': threading.Event()
+                }
+                # Create the handler including the state data
+                handler_with_state = partial(_param_collector_handler,
+                                            current_request_state)
+                # Register all the osc addresses we expect for the query
+                osc_manager.osc_receiver_raw(out_active_chan, handler_with_state)
+                osc_manager.osc_receiver_raw(out_active_wheel,
+                                             handler_with_state,
+                                             partial_string=True)
+                osc_manager.osc_receiver_raw(out_hue_sat, handler_with_state)
+                # send OSC message select active
+                # Now that we have a full channel list lets get the palette global info
+                osc_manager.osc_send_raw(address_clear_line)
+                osc_manager.osc_send_raw(address_open_cp)
+                osc_manager.osc_send_raw(address_edit)
+                # Select active will return a string with overall palette info
+                osc_manager.osc_send_raw(address_select_active)
+                # log sent and wait
+                logger.info(f"Sent select_active to CP {cp_num}, waiting for response:")
+                current_request_state["completion_event"].wait(timeout=2.0)
+                # After getting response to select active we will query each channel
+                ##############################################################################################################################
     except FileNotFoundError:
         logger.error("Color Palette JSON File not found")
     except json.JSONDecodeError:
         logger.error("Color Palette JSON file cannot be decoded")
+
+
+def _param_collector_handler(state, address, *args):
+    """
+    The main handler for collecting parameter data.
+    It resets the timeout on each message and checks for early completion.
+    """
+    # 1. Cancel any existing timer. This is the "reset" action.
+    if state["timer"]:
+        state["timer"].cancel()
+
+    # 2. Append the new data to the collection for this request.
+    state["responses"].append({"address": address, "args": args})
+
+    # 3. Your idea: Check for the "last message" for early completion.
+    if "color/hs" in address:
+        logger.info("'/color/hs' received, triggering early completion.")
+        _process_collected_params(state)
+        return # Stop here, no need to set a new timer.
+
+    # 4. Your other idea: Set a dynamic timeout based on latency.
+    # We'll use a minimum of 50ms as a safety net for very fast connections.
+    latency = osc_manager.get_latency()
+    timeout_duration = max(0.05, latency * 10)
+
+    # 5. Start a new timer as a fallback.
+    new_timer = threading.Timer(timeout_duration, partial(_process_collected_params,
+                                                          state))
+    state["timer"] = new_timer
+    new_timer.start()
+
+def _process_collected_params(state):
+    """
+    Final processing step called by the timer or early completion.
+    This function is now responsible for signaling the main loop to continue.
+    """
+# LOGIC CHECKS WITH DATA:
+# If a channel is in the by_type list, check that all channels of same
+#   manufacturer and model are the same values, if so don't record their
+#   values into the json file. Definitely record if different
+# Check all channels of same manufacturer and model, if they all have
+#   the same values add lowest channel number to by type list in file,
+#   and only record the by type channel's data
+# Add a top level key to each color palette for by_type_palette that is
+#   set to True if all of the recorded channels are by type
+
+# Response to Select Active:
+# /eos/out/active/chan, 31-47,151-166,201-204,213-214,
+#                       401-423  [100] ETC_Fixtures Vivid_R_11 @ 1067
+# Regex IDs version of args:
+# 31-47,151-166,201-204,213-214,401-423 = <ranges>
+# (double_space) = <unknown_field>
+# [100] = <intensity> (of first channel in ranges)
+# (not in this file) = <label> (meaning channel label)
+# ETC_Fixtures = <manufacturer> (white spaces replaced with underscores)
+# Vivid_R_11 = <model> (white spaces replaced with underscores)
+# @ indicates the next number is first patch address of first channel
+# 1067 <dmx> first channel starting dmx address
+    # First, make sure the timer is cancelled to prevent it from firing again.
+    if state["timer"]:
+        state["timer"].cancel()
+        state["timer"] = None
+
+    logger.info(f"Data collection complete for Chan "
+                f"{state['request_info']['channel']}. "
+                f"Received {len(state['responses'])} messages.")
+
+    # Here you would add the logic to parse the collected state['responses']
+    # and add them to your final results dictionary.
+    # For now, we'll just log it.
+    logger.log(helper_logger(), f"Collected for {state['request_info']['channel']}: "
+               f"{state['responses']}")
+
+    # This is the crucial step: signal the main loop that it can proceed.
+    state["completion_event"].set()
+
+
 
 
 
@@ -311,6 +390,7 @@ get_cp_params()
 # get_all_cp()
 # while True:
 #     time.sleep(0.5)
+
 
 
 
