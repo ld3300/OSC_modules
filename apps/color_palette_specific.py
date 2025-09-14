@@ -1,6 +1,8 @@
 """
 This script was created with the help of AI.
-Specific project for recording all color palette details
+Specific project for recording all color palette details.
+Will automatically change any color palettes channel ranges to by type if all channels
+of same manufacturer and model have the same values
 """
 
 import json
@@ -13,10 +15,6 @@ import time
 from platformdirs import user_documents_dir
 from osc.logging_config import setup_logging, helper_logger
 from osc.etcosc import etcosc
-
-
-# TODO: Output to JSON
-
 
 
 TX_IP = "127.0.0.1"
@@ -39,7 +37,19 @@ osc_manager = etcosc(
     ping=False      # Turn off ping since this isn't a live update script
 )
 
-# Global vars
+# Regex pattern to pull data from the string returned when color palette edit
+# Example usage:
+# match = EOS_CHANNEL_PATTERN(string_to_regex)
+# ranges = match.group('ranges')
+EOS_CHAN_PATTERN = re.compile(
+    r"^(?P<ranges>[\d,-]+)\s+"          # Capture channel ranges
+    r"(?P<unknown_field>\S*)\s*"        # Capture the optional status field
+    r"\[(?P<intensity>[^\]]+)\]\s+"     # Capture intensity
+    r"(?P<label>.*?)\s*"                # Capture optional label
+    r"(?P<manufacturer>\S+)\s+"         # Capture manufacturer
+    r"(?P<model>\S+)\s+@\s+"            # Capture model
+    r"(?P<dmx>\d+)$"                     # Capture DMX address
+)
 
 # Set up threading event to wait for each palette response before sending next one
 # Otherwise all get/CP are sent at once, and not all replies may happen
@@ -166,9 +176,11 @@ def _build_palette_json(address, args):
     elif response_type == "channels":
         # Number of list count minus the cp number and uid is how many chan ranges
         # there are
-        chan_ranges = [""]
         list_range = (int(cp_address[4]))
-        chan_ranges = args[2:list_range]
+        raw_chan_ranges = args[2:list_range]
+        # We have to make sure they are all strings, EOS sends the item as an integer
+        # instead of string if it is only one channel instead of a range
+        chan_ranges = [str(item) for item in raw_chan_ranges]
         # 2/channels/list/0/7, 1(i), UID(s), 31-47(s), 151-166(s), 201-204(s), 211-212(s), 401-423(s)
         current_color_palette.update({
             "eos_out": eos_out,
@@ -179,9 +191,9 @@ def _build_palette_json(address, args):
             "chan_ranges": chan_ranges
         })
     elif response_type == "byType":
-        byType_channels = [""]
         list_range = (int(cp_address[4]))
-        byType_channels = args[2:list_range]
+        raw_byType_channels = args[2:list_range]
+        byType_channels = [str(item) for item in raw_byType_channels]
         # 2/byType/list/0/7, 1(i), UID(s), 31(i), 151(i), 201(i), 211(i), 401(i)
         current_color_palette.update({
             "eos_out": eos_out,
@@ -218,17 +230,71 @@ def get_cp_params():
     """
     global current_cp_params
     user_number = 3
-    address_open_cp = "/eos/cmd/"
+    address_clear_line = f"/eos/user/{user_number}/newcmd"
+    address_blind = f"/eos/user/{user_number}/cmd/blind"
+    address_open_cp = f"/eos/user/{user_number}/cmd/color_palette/#"
+    address_edit = f"/eos/user/{user_number}/cmd/edit"
+    address_select_active = f"/eos/user/{user_number}/cmd/select_active/#"
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             logger.info(f"CP File {json_path} Successfully opened, extracting data")
             data = json.load(f)
+            # Set console to blind and edit color palette, then softkey edit
+            osc_manager.osc_send_raw(address_clear_line)
+            osc_manager.osc_send_raw(address_blind)
+            osc_manager.osc_send_raw(address_open_cp)
+            osc_manager.osc_send_raw(address_edit)
+            ############# ADD IF STATEMENT HERE TO DETERMINE IF WE ARE GETTING THE
+            # SELECT ACTIVE RESPONSES, OR THE DATA FOR EACH CHANNEL
+            # To continue see the sample code at bottom from gemini
+            osc_manager.osc_send_raw(address_select_active)
+
             # Loop through all the color palettes
             for cp_uid, cp_obj in data.items():
                 cp_num = cp_obj["palette_num"]
                 logger.info(f"Processing CP {cp_num}: {cp_obj['cp_label']}")
+                print(cp_obj['chan_ranges'])
+                channel_list = []
+                by_type = cp_obj["byType_channels"]
+                # Iterate through the channel ranges in the palette
+                for range_str in cp_obj['chan_ranges']:
+                    # we need to separate the starting and ending numbers
+                    range_split = range_str.split("-")
+                    print(range_split)
+                    start_chan = int(range_split[0])
+                    if len(range_split) == 2:
+                        end_chan = int(range_split[1])
+                        for chan in range(start_chan, end_chan + 1):
+                            channel_list.append(chan)
+                    elif len(range_split) == 1:
+                        channel_list.append(start_chan)
+                    print(channel_list)
+
+                # LOGIC CHECKS WITH DATA:
+                # If a channel is in the by_type list, check that all channels of same
+                #   manufacturer and model are the same values, if so don't record their
+                #   values into the json file. Definitely record if different
+                # Check all channels of same manufacturer and model, if they all have
+                #   the same values add lowest channel number to by type list in file,
+                #   and only record the by type channel's data
+                # Add a top level key to each color palette for by_type_palette that is
+                #   set to True if all of the recorded channels are by type
 
 
+
+
+
+                # Response to Select Active:
+                # /eos/out/active/chan, 31-47,151-166,201-204,213-214,401-423  [100] ETC_Fixtures Vivid_R_11 @ 1067
+                # Regex IDs version of args:
+                # 31-47,151-166,201-204,213-214,401-423 = <ranges>
+                # (double_space) = <unknown_field>
+                # [100] = <intensity> (of first channel in ranges)
+                # (not in this file) = <label> (meaning channel label)
+                # ETC_Fixtures = <manufacturer> (white spaces replaced with underscores)
+                # Vivid_R_11 = <model> (white spaces replaced with underscores)
+                # @ indicates the next number is first patch address of first channel
+                # 1067 <dmx> first channel starting dmx address
 
 
 
@@ -239,8 +305,113 @@ def get_cp_params():
 
 
 
+
 # Run script Here:
 get_cp_params()
 # get_all_cp()
 # while True:
-    # time.sleep(0.5)
+#     time.sleep(0.5)
+
+
+
+# gemini suggested methods
+
+# def _process_collected_params(state):
+#     """
+#     Final processing step called by the timer or early completion.
+#     This function is now responsible for signaling the main loop to continue.
+#     """
+#     # First, make sure the timer is cancelled to prevent it from firing again.
+#     if state["timer"]:
+#         state["timer"].cancel()
+#         state["timer"] = None
+
+#     logger.info(f"Data collection complete for Chan {state['request_info']['channel']}. "
+#                 f"Received {len(state['responses'])} messages.")
+
+#     # Here you would add the logic to parse the collected state['responses']
+#     # and add them to your final results dictionary.
+#     # For now, we'll just log it.
+#     logger.log(helper_logger(), f"Collected for {state['request_info']['channel']}: {state['responses']}")
+
+#     # This is the crucial step: signal the main loop that it can proceed.
+#     state["completion_event"].set()
+
+
+# def _param_collector_handler(state, address, *args):
+#     """
+#     The main handler for collecting parameter data.
+#     It resets the timeout on each message and checks for early completion.
+#     """
+#     # 1. Cancel any existing timer. This is the "reset" action.
+#     if state["timer"]:
+#         state["timer"].cancel()
+
+#     # 2. Append the new data to the collection for this request.
+#     state["responses"].append({"address": address, "args": args})
+
+#     # 3. Your idea: Check for the "last message" for early completion.
+#     if "color/hs" in address:
+#         logger.info("'/color/hs' received, triggering early completion.")
+#         _process_collected_params(state)
+#         return # Stop here, no need to set a new timer.
+
+#     # 4. Your other idea: Set a dynamic timeout based on latency.
+#     # We'll use a minimum of 50ms as a safety net for very fast connections.
+#     latency = osc_manager.get_latency()
+#     timeout_duration = max(0.05, latency * 10)
+
+#     # 5. Start a new timer as a fallback.
+#     new_timer = threading.Timer(timeout_duration, partial(_process_collected_params, state))
+#     state["timer"] = new_timer
+#     new_timer.start()
+
+
+# def get_cp_params():
+#     """
+#     Get all the channel and specific color detail for palette
+#     """
+#     try:
+#         with open(json_path, 'r', encoding='utf-8') as f:
+#             logger.info(f"CP File {json_path} Successfully opened, extracting data")
+#             data = json.load(f)
+
+#             # Loop through each Color Palette from the first part of the script
+#             for cp_uid, cp_obj in data.items():
+#                 cp_num = cp_obj["palette_num"]
+#                 logger.info(f"--- Processing CP {cp_num}: {cp_obj['cp_label']} ---")
+
+#                 # For now, we'll just query the first channel found in 'byType'
+#                 # A full implementation would parse the ranges and loop all channels.
+#                 if not cp_obj.get("byType_channels"):
+#                     logger.warning(f"No 'byType' channels found for CP {cp_num}, skipping.")
+#                     continue
+
+#                 # Let's just take the first channel for this example
+#                 channel_to_query = cp_obj["byType_channels"][0]
+
+#                 # 1. Create the state object for this specific request.
+#                 current_request_state = {
+#                     "request_info": {"cp_num": cp_num, "channel": channel_to_query},
+#                     "responses": [],
+#                     "timer": None,
+#                     "completion_event": threading.Event()
+#                 }
+
+#                 # 2. Create the handler with the state "frozen" into it.
+#                 handler_with_state = partial(_param_collector_handler, current_request_state)
+
+#                 # 3. Register the handler for all the messages we expect.
+#                 osc_manager.osc_receiver_raw("/eos/out/active/chan", handler_with_state)
+#                 osc_manager.osc_receiver_raw("/eos/out/active/wheel/*", handler_with_state, partial_string=True)
+#                 osc_manager.osc_receiver_raw("/eos/out/color/hs", handler_with_state)
+
+#                 # 4. Send the command to Eos to select the channel.
+#                 osc_manager.osc_send_raw(f"/eos/newcmd/chan/{channel_to_query}/enter")
+
+#                 # 5. Wait here until the completion_event is set by the handler logic.
+#                 logger.info(f"Sent request for Chan {channel_to_query}, waiting for responses...")
+#                 current_request_state["completion_event"].wait(timeout=2.0) # 2-second safety timeout
+#     except FileNotFoundError:
+#         logger.error("Color Palette JSON File not found")
+#     except json.JSONDecodeError:

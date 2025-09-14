@@ -16,7 +16,7 @@ import logging
 from osc.etcosc import etcosc
 from osc.logging_config import setup_logging
 
-OSC_TX_STRING = "/eos/newcmd/chan/201/enter"
+OSC_TX_STRING = "/eos/get/cp/index/2"
 my_args = ""
 
 # Constants, change for your test environment

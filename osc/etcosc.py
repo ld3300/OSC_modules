@@ -438,6 +438,8 @@ class etcosc:
                 break
             else:
                 logger.info(f"Ping Lost: sent {ping_sent} return {ping_return}")
+                # We can't have a latency if we don't receive a response
+                self.ping_latency = -1
         # If no match in the ping queue
         if not matched:
             logger.warning(f"Returned ping {ping_return} had no match in queue")
