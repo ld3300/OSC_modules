@@ -105,6 +105,7 @@ class etcosc:
         )
         if self.mode == "txrx" and ping and self.ping_timer > 0:
             self._start_ping()
+        self._ping_thread = None
 
     # Send message directly to oschandler
     def osc_send_raw(self, address, *args, send_interval=0.0):
@@ -359,6 +360,14 @@ class etcosc:
         via the /eos/ping command.
         """
         return self.ping_latency
+
+    def stop(self):
+        """Stops the OSC server thread."""
+        if hasattr(self.osc_handler, 'stop_receiving'):
+            self.osc_handler.stop_receiving()
+            if self._ping_thread and self._ping_thread.is_alive():
+                # In a real implementation, you'd use an event to signal the thread to stop
+                logger.info("Ping thread will stop on its own as it is a daemon.")
 
     def _start_ping(self):
         """

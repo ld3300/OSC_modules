@@ -7,6 +7,8 @@ import json
 import logging
 import os
 import re
+import threading
+from functools import partial
 import time
 from platformdirs import user_documents_dir
 from osc.logging_config import setup_logging, helper_logger
@@ -210,18 +212,22 @@ def _write_json_details():
         json.dump(color_palette_output, f, indent=2)
 
 current_cp_params = {}
-
 def get_cp_params():
     """
     Get all the channel and specific color detail for palette
     """
-    global cp_data_file
+    global current_cp_params
+    user_number = 3
+    address_open_cp = "/eos/cmd/"
     try:
-        with open(json_path, 'r') as f:
+        with open(json_path, 'r', encoding='utf-8') as f:
             logger.info(f"CP File {json_path} Successfully opened, extracting data")
             data = json.load(f)
-            for cp, obj in data.items():
-                cp_num = obj["palette_num"]
+            # Loop through all the color palettes
+            for cp_uid, cp_obj in data.items():
+                cp_num = cp_obj["palette_num"]
+                logger.info(f"Processing CP {cp_num}: {cp_obj['cp_label']}")
+
 
 
 

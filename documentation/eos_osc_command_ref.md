@@ -93,7 +93,7 @@ Cue -       /eos/out/active/cue --- fill these in later multiple responses see s
 Command line can include string substitution with arguments
 /eos/cmd <string> - example /eos/cmd "Chan 1 At 75#" (# or Enter)
                             /eos/cmd "Chan %1 At %2#", 1, 75 (sets channel 1 to 75%)
-                            /eos/cmd/<text>/<text>/<text>/... - optional method to do in-line command arguments
+/eos/cmd/<text>/<text>/<text>/... - optional method to do in-line   command arguments
 /eos/newcmd - same as /eos/cmd, but resets command line first
 /eos/event - same as /eos/cmd but as console event
 /eos/newevent - same, but rests command line first

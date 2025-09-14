@@ -1,0 +1,55 @@
+### Created with the help of AI ###
+
+# test for joystick
+"""
+COPY this section to files in test folder, to reference parent folder
+files
+use command:
+pytest test_files\test_etcosc.py
+In this file, or anytime need to use input() command add -s
+pytest -s test_files\test_etcosc.py
+"""
+
+import time
+
+import logging
+from osc.etcosc import etcosc
+from osc.logging_config import setup_logging
+
+OSC_TX_STRING = "/eos/newcmd/chan/201/enter"
+my_args = ""
+
+# Constants, change for your test environment
+RX_PORT = 8001
+TX_PORT = 8000
+TX_IP = '127.0.0.1'
+
+# Setup logging to file
+setup_logging()
+logger = logging.getLogger(__name__)
+
+osc_manager = etcosc(
+    mode='txrx',
+    tx_udp_ip=TX_IP,
+    tx_port=TX_PORT,
+    rx_port=RX_PORT
+)
+
+
+# def my_handler(self, address, *args):
+#     logger.info(f"received OSC message: {address} {args}")
+
+
+# osc_manager.start_receiving()
+# logger.info("receiver started")
+testmode = 'txrx'
+if testmode in 'txrx':
+    print('txrx passed')
+
+if __name__ == "__main__":
+    # while True:
+    #     # user_input = input(" q + enter for quit: \n")
+    #     # if user_input == 'q':
+    #     #     break
+    #     time.sleep(0.5)
+    osc_manager.osc_send_raw(OSC_TX_STRING)

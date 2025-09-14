@@ -375,3 +375,12 @@ class OSCHandler:
             )
             self._server_thread.start()
             logger.info("OSC server started in background thread.")
+
+    def stop_receiving(self):
+        """Stops the OSC server."""
+        if hasattr(self, 'osc_receiver'):
+            self.osc_receiver.shutdown()
+            logger.info("OSC server shutdown requested.")
+        if hasattr(self, '_server_thread') and self._server_thread.is_alive():
+            self._server_thread.join(timeout=1.0)
+            logger.info("OSC server thread stopped.")
