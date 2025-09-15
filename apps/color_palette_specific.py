@@ -149,13 +149,15 @@ def _build_palette_json(address, args):
     address_pattern = r"\/eos\/out\/get\/cp\/(.*)"
 
     cp_regex = re.search(address_pattern, address)
-    cp_address = cp_regex.group(1)
-    cp_address = cp_address.split("/")
+    if not cp_regex:
+        return
+    cp_address = cp_regex.group(1).split("/")
+    if len(cp_address) < 2:
+        return
     print(cp_address)
     global color_palette_output
     global current_color_palette
-    cp = cp_address[0]
-    response_type = cp_address[1]
+    cp, response_type = cp_address[0], cp_address[1]
     cp_uid = args[1]
     cp_index = args[0]
     eos_out = f"{address}: {args}"
@@ -223,23 +225,26 @@ def _write_json_details():
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(color_palette_output, f, indent=2)
 
-current_cp_params = {}
+
 def get_cp_params():
     """
     Get all the channel and specific color detail for palette
     """
-    global current_cp_params
     current_chan = 0
     cp_num = 0
+    cp_name = None
     user_number = 3
+    set_user = "/eos/user"
     start_string = f"/eos/user/{user_number}"
     # Define address commands here for easier management
     address_clear_line = f"{start_string}/newcmd"
-    address_blind = f"{start_string}/cmd/blind"
-    address_open_cp = f"{start_string}/cmd/color_palette/{cp_num}/#"
+    address_blind_cp = f"{start_string}/key/open_cp_blind"
+    # Create template string, usage: open_cp_tmpl.format(cp=cp_num)
+    open_cp_tmpl = f"{start_string}/cmd/color_palette/{{cp}}/#"
     address_edit = f"{start_string}/cmd/edit"
     address_select_active = f"{start_string}/cmd/select_active/#"
-    address_select_chan = f"{start_string}/cmd/chan/{current_chan}/#"
+    # Create template string, usage: select_chan_tmpl.format(chan=chan_num)
+    select_chan_tmpl = f"{start_string}/cmd/chan/{{chan}}/#"
     # These are the receiving addresses we need to catch:
     out_start_string = "/eos/out"
     out_active_chan = f"{out_start_string}/active/chan"
@@ -249,14 +254,37 @@ def get_cp_params():
         with open(json_path, 'r', encoding='utf-8') as f:
             logger.info(f"CP File {json_path} Successfully opened, extracting data")
             data = json.load(f)
+            # Create state object that gets passed to handler
+            state = {
+                'request_type': None,
+                'cp_uid': "",
+                'cp_num': 0,
+                'cp_name': None,
+                'channel': None,
+                'by_type': [],
+                'responses': [],
+                'timer': None,
+                'completion_event': threading.Event()
+            }
             # Set console to blind and edit color palette, then softkey edit
             osc_manager.osc_send_raw(address_clear_line)
-            osc_manager.osc_send_raw(address_blind)
+            osc_manager.osc_send_raw(address_blind_cp)
+            # Get us into cp edit mode
+            osc_manager.osc_send_raw(address_edit)
+            # Create the handler including the state data
+            handler_with_state = partial(_param_collector_handler,
+                                        state=state)
+            # Register all the osc addresses we expect for each query
+            osc_manager.osc_receiver_raw(out_active_chan, handler_with_state)
+            osc_manager.osc_receiver_raw(out_active_wheel,
+                                            handler_with_state,
+                                            partial_string=True)
+            osc_manager.osc_receiver_raw(out_hue_sat, handler_with_state)
             # Loop through all the color palettes
             for cp_uid, cp_obj in data.items():
                 cp_num = cp_obj["palette_num"]
+                cp_name = cp_obj['cp_label']
                 logger.info(f"Processing CP {cp_num}: {cp_obj['cp_label']}")
-                print(cp_obj['chan_ranges'])
                 channel_list = []
                 by_type = cp_obj["byType_channels"]
                 # Iterate through the channel ranges in the palette
@@ -270,34 +298,25 @@ def get_cp_params():
                             channel_list.append(chan)
                     elif len(range_split) == 1:
                         channel_list.append(start_chan)
-                # Create state object that gets passed to handler
-                current_request_state = {
-                    "request_info": {'request_type': 'select_active',
-                                     'cp_num': cp_num,
-                                     'channel': None},
-                    'responses': [],
-                    'timer': None,
-                    'completion_event': threading.Event()
-                }
-                # Create the handler including the state data
-                handler_with_state = partial(_param_collector_handler,
-                                            current_request_state)
-                # Register all the osc addresses we expect for the query
-                osc_manager.osc_receiver_raw(out_active_chan, handler_with_state)
-                osc_manager.osc_receiver_raw(out_active_wheel,
-                                             handler_with_state,
-                                             partial_string=True)
-                osc_manager.osc_receiver_raw(out_hue_sat, handler_with_state)
-                # send OSC message select active
+                # Build state that handler will use
+                state['request_type'] = 'select_active'
+                state['cp_uid'] = cp_uid
+                state['cp_num'] = cp_num
+                state["cp_name"] = cp_name
+                state["by_type"] = by_type
                 # Now that we have a full channel list lets get the palette global info
-                osc_manager.osc_send_raw(address_clear_line)
-                osc_manager.osc_send_raw(address_open_cp)
-                osc_manager.osc_send_raw(address_edit)
+                osc_manager.osc_send_raw(open_cp_tmpl.format(cp=cp_num))
                 # Select active will return a string with overall palette info
                 osc_manager.osc_send_raw(address_select_active)
                 # log sent and wait
                 logger.info(f"Sent select_active to CP {cp_num}, waiting for response:")
-                current_request_state["completion_event"].wait(timeout=2.0)
+                state['completion_event'].wait(timeout=2.0)
+                state['completion_event'].clear()
+                for chan in channel_list:
+                    state['request_type'] = 'channel'
+                    state['channel'] = chan
+                    osc_manager.osc_send_raw(select_chan_tmpl.format(chan=chan))
+
                 # After getting response to select active we will query each channel
                 ##############################################################################################################################
     except FileNotFoundError:
@@ -306,30 +325,29 @@ def get_cp_params():
         logger.error("Color Palette JSON file cannot be decoded")
 
 
-def _param_collector_handler(state, address, *args):
+def _param_collector_handler(address, *args, state=None):
     """
     The main handler for collecting parameter data.
     It resets the timeout on each message and checks for early completion.
     """
-    # 1. Cancel any existing timer. This is the "reset" action.
+    # Cancel any existing timer. This is the "reset" action.
     if state["timer"]:
         state["timer"].cancel()
 
-    # 2. Append the new data to the collection for this request.
+    # Append the new data to the collection for this request.
     state["responses"].append({"address": address, "args": args})
 
-    # 3. Your idea: Check for the "last message" for early completion.
+    # Check for the "last message" for early completion.
     if "color/hs" in address:
         logger.info("'/color/hs' received, triggering early completion.")
         _process_collected_params(state)
         return # Stop here, no need to set a new timer.
 
-    # 4. Your other idea: Set a dynamic timeout based on latency.
     # We'll use a minimum of 50ms as a safety net for very fast connections.
     latency = osc_manager.get_latency()
     timeout_duration = max(0.05, latency * 10)
 
-    # 5. Start a new timer as a fallback.
+    # Start a new timer as a fallback.
     new_timer = threading.Timer(timeout_duration, partial(_process_collected_params,
                                                           state))
     state["timer"] = new_timer
@@ -362,21 +380,57 @@ def _process_collected_params(state):
 # Vivid_R_11 = <model> (white spaces replaced with underscores)
 # @ indicates the next number is first patch address of first channel
 # 1067 <dmx> first channel starting dmx address
+
     # First, make sure the timer is cancelled to prevent it from firing again.
     if state["timer"]:
         state["timer"].cancel()
         state["timer"] = None
+    cp_num = state['cp_num']
+    cp_name = state['cp_name']
+    logger.log(helper_logger(), f"{cp_num:<3}: {state['responses']}")
+    for item in state['responses']:
+        out_address = item['address']
+        out_args = item['args']
+    if state['request_type'] == 'select_active':
+        logger.info(f"Receiving 'select active' for CP {cp_num}:{cp_name}")
 
-    logger.info(f"Data collection complete for Chan "
-                f"{state['request_info']['channel']}. "
-                f"Received {len(state['responses'])} messages.")
+    ###### Format to create to add to json file
+    # pull json file into global color palette output variable
+    # then do cp_UID.update({<param_data>})
+    # build it in the following structure:
+    param_data ={ 'parameter_data':{
+        'all_chans':{
+            'active_string': "",
+            'wheels':[      # we only want category 3 (color) wheels
+                {'number': 0, 'name': "", 'value': 0.000},
+                {'number': 0, 'name': "", 'value': 0.000}
+            ],
+            'hue': 0.000,
+            'saturation': 0.000
+        },
+        'chans':[
+            {'num': 0,
+             'manufacturer': "",
+             'model': "",
+             'address': 0000,
+             'wheels':[{'number': 0, 'name': "", 'value': 0.000}],
+             'hue': 0.000,
+             'saturation': 0.000
+            }
+        ]
+    }
+    }
+    # logger.info(f"Data collection complete for Chan "
+    #             f"{state['channel']}. "
+    #             f"Received {len(state['responses'])} messages.")
 
     # Here you would add the logic to parse the collected state['responses']
     # and add them to your final results dictionary.
     # For now, we'll just log it.
-    logger.log(helper_logger(), f"Collected for {state['request_info']['channel']}: "
-               f"{state['responses']}")
-
+    # logger.log(helper_logger(), f"Collected for {state['channel']}: "
+    #            f"{state['responses']}")
+    # Clear response list for next CP
+    state['responses'] = []
     # This is the crucial step: signal the main loop that it can proceed.
     state["completion_event"].set()
 
@@ -390,108 +444,3 @@ get_cp_params()
 # get_all_cp()
 # while True:
 #     time.sleep(0.5)
-
-
-
-
-# gemini suggested methods
-
-# def _process_collected_params(state):
-#     """
-#     Final processing step called by the timer or early completion.
-#     This function is now responsible for signaling the main loop to continue.
-#     """
-#     # First, make sure the timer is cancelled to prevent it from firing again.
-#     if state["timer"]:
-#         state["timer"].cancel()
-#         state["timer"] = None
-
-#     logger.info(f"Data collection complete for Chan {state['request_info']['channel']}. "
-#                 f"Received {len(state['responses'])} messages.")
-
-#     # Here you would add the logic to parse the collected state['responses']
-#     # and add them to your final results dictionary.
-#     # For now, we'll just log it.
-#     logger.log(helper_logger(), f"Collected for {state['request_info']['channel']}: {state['responses']}")
-
-#     # This is the crucial step: signal the main loop that it can proceed.
-#     state["completion_event"].set()
-
-
-# def _param_collector_handler(state, address, *args):
-#     """
-#     The main handler for collecting parameter data.
-#     It resets the timeout on each message and checks for early completion.
-#     """
-#     # 1. Cancel any existing timer. This is the "reset" action.
-#     if state["timer"]:
-#         state["timer"].cancel()
-
-#     # 2. Append the new data to the collection for this request.
-#     state["responses"].append({"address": address, "args": args})
-
-#     # 3. Your idea: Check for the "last message" for early completion.
-#     if "color/hs" in address:
-#         logger.info("'/color/hs' received, triggering early completion.")
-#         _process_collected_params(state)
-#         return # Stop here, no need to set a new timer.
-
-#     # 4. Your other idea: Set a dynamic timeout based on latency.
-#     # We'll use a minimum of 50ms as a safety net for very fast connections.
-#     latency = osc_manager.get_latency()
-#     timeout_duration = max(0.05, latency * 10)
-
-#     # 5. Start a new timer as a fallback.
-#     new_timer = threading.Timer(timeout_duration, partial(_process_collected_params, state))
-#     state["timer"] = new_timer
-#     new_timer.start()
-
-
-# def get_cp_params():
-#     """
-#     Get all the channel and specific color detail for palette
-#     """
-#     try:
-#         with open(json_path, 'r', encoding='utf-8') as f:
-#             logger.info(f"CP File {json_path} Successfully opened, extracting data")
-#             data = json.load(f)
-
-#             # Loop through each Color Palette from the first part of the script
-#             for cp_uid, cp_obj in data.items():
-#                 cp_num = cp_obj["palette_num"]
-#                 logger.info(f"--- Processing CP {cp_num}: {cp_obj['cp_label']} ---")
-
-#                 # For now, we'll just query the first channel found in 'byType'
-#                 # A full implementation would parse the ranges and loop all channels.
-#                 if not cp_obj.get("byType_channels"):
-#                     logger.warning(f"No 'byType' channels found for CP {cp_num}, skipping.")
-#                     continue
-
-#                 # Let's just take the first channel for this example
-#                 channel_to_query = cp_obj["byType_channels"][0]
-
-#                 # 1. Create the state object for this specific request.
-#                 current_request_state = {
-#                     "request_info": {"cp_num": cp_num, "channel": channel_to_query},
-#                     "responses": [],
-#                     "timer": None,
-#                     "completion_event": threading.Event()
-#                 }
-
-#                 # 2. Create the handler with the state "frozen" into it.
-#                 handler_with_state = partial(_param_collector_handler, current_request_state)
-
-#                 # 3. Register the handler for all the messages we expect.
-#                 osc_manager.osc_receiver_raw("/eos/out/active/chan", handler_with_state)
-#                 osc_manager.osc_receiver_raw("/eos/out/active/wheel/*", handler_with_state, partial_string=True)
-#                 osc_manager.osc_receiver_raw("/eos/out/color/hs", handler_with_state)
-
-#                 # 4. Send the command to Eos to select the channel.
-#                 osc_manager.osc_send_raw(f"/eos/newcmd/chan/{channel_to_query}/enter")
-
-#                 # 5. Wait here until the completion_event is set by the handler logic.
-#                 logger.info(f"Sent request for Chan {channel_to_query}, waiting for responses...")
-#                 current_request_state["completion_event"].wait(timeout=2.0) # 2-second safety timeout
-#     except FileNotFoundError:
-#         logger.error("Color Palette JSON File not found")
-#     except json.JSONDecodeError:

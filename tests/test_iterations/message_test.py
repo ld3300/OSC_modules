@@ -16,9 +16,6 @@ import logging
 from osc.etcosc import etcosc
 from osc.logging_config import setup_logging
 
-OSC_TX_STRING = "/eos/get/cp/index/2"
-my_args = ""
-
 # Constants, change for your test environment
 RX_PORT = 8001
 TX_PORT = 8000
@@ -52,4 +49,6 @@ if __name__ == "__main__":
     #     # if user_input == 'q':
     #     #     break
     #     time.sleep(0.5)
-    osc_manager.osc_send_raw(OSC_TX_STRING)
+    # osc_manager.osc_send_raw("/eos/user/3/cmd/color_palette/1/#")
+    # osc_manager.osc_send_raw("/eos/user/3/cmd/chan/31/#")
+    osc_manager.osc_send_raw("/eos/get/patch/index/21")

@@ -302,6 +302,15 @@ class OSCHandler:
                 if substring in address:
                     handler(address, *args)
 
+    def _handler_name(self, h):
+        import functools
+        if hasattr(h, "name"):
+            return h.name
+        if isinstance(h, functools.partial):
+            base = h.func
+            return f"partial({getattr(base, 'name', repr(base))})"
+        return getattr(h, "class", type(h)).name
+
     def register_osc_listener(self, address, handler):
         """
         Handle incoming OSC messages
@@ -325,8 +334,8 @@ class OSCHandler:
         # Send to user message handler
         self.dispatcher.map(address, handler)
         logger.info(
-            f"Registered rx address '{address}' with handler "
-            f"'{handler.__name__}'"
+            "Registered rx address '%s' with handler %s", address,
+            self._handler_name(handler)
         )
 
     def register_osc_substring(self, substring, handler):
@@ -347,8 +356,8 @@ class OSCHandler:
             self.substring_listeners = []
         self.substring_listeners.append((substring, handler))
         logger.info(
-            f"Registered rx address substring '{substring}' with handler "
-            f"'{handler.__name__}'"
+            "Registered rx address substring '%s' with handler '%s'", substring,
+            self._handler_name(handler)
         )
 
     def start_receiving(self):
