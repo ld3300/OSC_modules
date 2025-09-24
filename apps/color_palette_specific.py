@@ -94,6 +94,7 @@ cp_present_flag = False
 cp_send_counter = 0
 current_color_palette = {}
 color_palette_output = {}
+color_palette_params = {}
 def _get_details_by_count():   # again, should this be separate methods?
     """
     all start with /eos/get example: /eos/get/cp/index/<index #>
@@ -302,8 +303,8 @@ def get_cp_params():
                 state['request_type'] = 'select_active'
                 state['cp_uid'] = cp_uid
                 state['cp_num'] = cp_num
-                state["cp_name"] = cp_name
-                state["by_type"] = by_type
+                state['cp_name'] = cp_name
+                state['by_type'] = by_type
                 # Now that we have a full channel list lets get the palette global info
                 osc_manager.osc_send_raw(open_cp_tmpl.format(cp=cp_num))
                 # Select active will return a string with overall palette info
@@ -318,6 +319,7 @@ def get_cp_params():
                     osc_manager.osc_send_raw(select_chan_tmpl.format(chan=chan))
                     state['completion_event'].wait(timeout=2.0)
                     state['completion_event'].clear()
+                state['request_type'] = 'write'
 
                 # After getting response to select active we will query each channel
                 ##############################################################################################################################
@@ -383,6 +385,7 @@ def _process_collected_params(state):
 # @ indicates the next number is first patch address of first channel
 # 1067 <dmx> first channel starting dmx address
 
+    global color_palette_params
     # First, make sure the timer is cancelled to prevent it from firing again.
     if state["timer"]:
         state["timer"].cancel()
@@ -396,8 +399,14 @@ def _process_collected_params(state):
         out_args = item['args']
     if state['request_type'] == 'select_active':
         logger.info(f"Receiving 'select active' for CP {cp_num}:{cp_name}")
+        # active_string = state['responses']?? need to parse out responses somehow
+
     elif state['request_type'] == 'channel':
         logger.info(f"receiving channel {cp_channel} for cp {cp_num}:{cp_name}")
+    
+    elif state['request_type'] == 'write':
+        # Write updated CP info to json file
+        return #temporary
 
     ###### Format to create to add to json file
     # pull json file into global color palette output variable
@@ -420,8 +429,7 @@ def _process_collected_params(state):
              'address': 0000,
              'wheels':[{'number': 0, 'name': "", 'value': 0.000}],
              'hue': 0.000,
-             'saturation': 0.000
-            }
+             'saturation': 0.000}
         ]
     }
     }
