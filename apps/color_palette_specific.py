@@ -316,6 +316,8 @@ def get_cp_params():
                     state['request_type'] = 'channel'
                     state['channel'] = chan
                     osc_manager.osc_send_raw(select_chan_tmpl.format(chan=chan))
+                    state['completion_event'].wait(timeout=2.0)
+                    state['completion_event'].clear()
 
                 # After getting response to select active we will query each channel
                 ##############################################################################################################################
@@ -387,18 +389,21 @@ def _process_collected_params(state):
         state["timer"] = None
     cp_num = state['cp_num']
     cp_name = state['cp_name']
+    cp_channel = state['channel']
     logger.log(helper_logger(), f"{cp_num:<3}: {state['responses']}")
     for item in state['responses']:
         out_address = item['address']
         out_args = item['args']
     if state['request_type'] == 'select_active':
         logger.info(f"Receiving 'select active' for CP {cp_num}:{cp_name}")
+    elif state['request_type'] == 'channel':
+        logger.info(f"receiving channel {cp_channel} for cp {cp_num}:{cp_name}")
 
     ###### Format to create to add to json file
     # pull json file into global color palette output variable
     # then do cp_UID.update({<param_data>})
     # build it in the following structure:
-    param_data ={ 'parameter_data':{
+    param_data = { 'parameter_data':{
         'all_chans':{
             'active_string': "",
             'wheels':[      # we only want category 3 (color) wheels
